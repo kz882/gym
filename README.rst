@@ -1,3 +1,29 @@
+OpenAi Gym with CarRacing-v1 (unofficial)
+*****************************************
+
+This repo has improvements on the complexity for CarRacing-v1
+
+Improved
+========
+
+* Complexity of map (several types of intersections)
+
+Here some images of some changes:
+image
+
+To Improve
+==========
+* Add more than one line
+* Detect change of line
+* Add road lines
+* Change car when not racing
+* Add obstacles
+ 
+---
+
+Original Read (Official one)
+****************************
+
 **Status:** Maintenance (expect bug fixes and minor updates)
 
 OpenAI Gym
