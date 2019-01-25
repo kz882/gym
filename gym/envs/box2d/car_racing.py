@@ -44,13 +44,13 @@ STATE_H = 96
 VIDEO_W = 600
 VIDEO_H = 400
 WINDOW_H = 700
-WINDOW_W = WINDOW_H*1.5
+WINDOW_W = int(WINDOW_H*1.5)
 
 SCALE       = 6.0        # Track scale
 TRACK_RAD   = 900/SCALE  # Track is heavily morphed circle with this radius
 PLAYFIELD   = 2000/SCALE # Game over boundary
 FPS         = 50
-ZOOM        = 2.7        # Camera zoom, 0.25 to take screenshots
+ZOOM        = 00.25        # Camera zoom, 0.25 to take screenshots, default 2.7
 ZOOM_FOLLOW = True       # Set to False for fixed view (don't use zoom)
 
 
@@ -238,15 +238,15 @@ class CarRacing(gym.Env, EzPickle):
         track_num = 2
         tracks = []
         for _ in range(track_num):
-            track = self._get_track()
+            track = self._get_track(12)
             if not track: return track
             tracks.append(track)
 
-        track = [x for x in y for y in tracks]
+        track = [x for y in tracks for x in y] + [tracks[0][-1]]
 
         # Red-white border on hard turns
         border = [False]*len(track)
-        for i in range(len(track)):
+        for i in range(1,len(track)):
             good = True
             oneside = 0
             for neg in range(BORDER_MIN_COUNT):
@@ -356,11 +356,13 @@ class CarRacing(gym.Env, EzPickle):
         vel = self.car.hull.linearVelocity
         if np.linalg.norm(vel) > 0.5:
             angle = math.atan2(vel[0], vel[1])
-        self.transform.set_scale(zoom, zoom)
+        # TODO to screenshots read comments below
+        #self.transform.set_scale(zoom, zoom) # get screenshots commet this out
         self.transform.set_translation(
-            WINDOW_W/2 - (scroll_x*zoom*math.cos(angle) - scroll_y*zoom*math.sin(angle)),
-            WINDOW_H/4 - (scroll_x*zoom*math.sin(angle) + scroll_y*zoom*math.cos(angle)) )
-        self.transform.set_rotation(angle)
+            # to get nice screenshots use WINDOW_X/2
+            WINDOW_W/2,# - (scroll_x*zoom*math.cos(angle) - scroll_y*zoom*math.sin(angle)), 
+            WINDOW_H/2)#4 - (scroll_x*zoom*math.sin(angle) + scroll_y*zoom*math.cos(angle)) )
+        #self.transform.set_rotation(angle) # get screenshots commet this out
 
         self.car.draw(self.viewer, mode!="state_pixels")
 
