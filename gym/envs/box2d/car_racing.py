@@ -43,14 +43,14 @@ STATE_W = 96   # less than Atari 160x192
 STATE_H = 96
 VIDEO_W = 600
 VIDEO_H = 400
-WINDOW_W = 1200
-WINDOW_H = 1000
+WINDOW_H = 700
+WINDOW_W = WINDOW_H*1.5
 
 SCALE       = 6.0        # Track scale
 TRACK_RAD   = 900/SCALE  # Track is heavily morphed circle with this radius
 PLAYFIELD   = 2000/SCALE # Game over boundary
 FPS         = 50
-ZOOM        = 2.7        # Camera zoom
+ZOOM        = 2.7        # Camera zoom, 0.25 to take screenshots
 ZOOM_FOLLOW = True       # Set to False for fixed view (don't use zoom)
 
 
@@ -131,7 +131,8 @@ class CarRacing(gym.Env, EzPickle):
         self.road = []
         self.car.destroy()
 
-    def _create_track(self):
+    def _get_track(self, CHECKPOINTS, TRACK_RAD=900/SCALE):
+
         CHECKPOINTS = 12
 
         # Create checkpoints
@@ -229,6 +230,19 @@ class CarRacing(gym.Env, EzPickle):
             np.square( first_perp_y*(track[0][3] - track[-1][3]) ))
         if well_glued_together > TRACK_DETAIL_STEP:
             return False
+
+        return track
+
+    def _create_track(self):
+
+        track_num = 2
+        tracks = []
+        for _ in range(track_num):
+            track = self._get_track()
+            if not track: return track
+            tracks.append(track)
+
+        track = [x for x in y for y in tracks]
 
         # Red-white border on hard turns
         border = [False]*len(track)
