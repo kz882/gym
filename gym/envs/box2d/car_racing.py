@@ -50,7 +50,7 @@ SCALE       = 6.0        # Track scale
 TRACK_RAD   = 900/SCALE  # Track is heavily morphed circle with this radius
 PLAYFIELD   = 2000/SCALE # Game over boundary
 FPS         = 50
-ZOOM        = 00.25        # Camera zoom, 0.25 to take screenshots, default 2.7
+ZOOM        = 2.7        # Camera zoom, 0.25 to take screenshots, default 2.7
 ZOOM_FOLLOW = True       # Set to False for fixed view (don't use zoom)
 
 
@@ -242,51 +242,60 @@ class CarRacing(gym.Env, EzPickle):
             if not track: return track
             tracks.append(track)
 
-        track = [x for y in tracks for x in y] + [tracks[0][-1]]
-
         # Red-white border on hard turns
-        border = [False]*len(track)
-        for i in range(1,len(track)):
-            good = True
-            oneside = 0
-            for neg in range(BORDER_MIN_COUNT):
-                beta1 = track[i-neg-0][1]
-                beta2 = track[i-neg-1][1]
-                good &= abs(beta1 - beta2) > TRACK_TURN_RATE*0.2
-                oneside += np.sign(beta1 - beta2)
-            good &= abs(oneside) == BORDER_MIN_COUNT
-            border[i] = good
-        for i in range(len(track)):
-            for neg in range(BORDER_MIN_COUNT):
-                border[i-neg] |= border[i]
+        borders = []
+        for track in tracks:
+            border = [False]*len(track)
+            for i in range(1,len(track)):
+                good = True
+                oneside = 0
+                for neg in range(BORDER_MIN_COUNT):
+                    beta1 = track[i-neg-0][1]
+                    beta2 = track[i-neg-1][1]
+                    good &= abs(beta1 - beta2) > TRACK_TURN_RATE*0.2
+                    oneside += np.sign(beta1 - beta2)
+                good &= abs(oneside) == BORDER_MIN_COUNT
+                border[i] = good
+            for i in range(len(track)):
+                for neg in range(BORDER_MIN_COUNT):
+                    border[i-neg] |= border[i]
+            borders.append(border)
+                
+        # Creating borders for printing
+        for track, border in zip(tracks,borders):
+            for i in range(len(track)):
+                alpha1, beta1, x1, y1 = track[i]
+                alpha2, beta2, x2, y2 = track[i-1]
+                if border[i]:
+                    side = np.sign(beta2 - beta1)
+                    b1_l = (x1 + side* TRACK_WIDTH        *math.cos(beta1), y1 + side* TRACK_WIDTH        *math.sin(beta1))
+                    b1_r = (x1 + side*(TRACK_WIDTH+BORDER)*math.cos(beta1), y1 + side*(TRACK_WIDTH+BORDER)*math.sin(beta1))
+                    b2_l = (x2 + side* TRACK_WIDTH        *math.cos(beta2), y2 + side* TRACK_WIDTH        *math.sin(beta2))
+                    b2_r = (x2 + side*(TRACK_WIDTH+BORDER)*math.cos(beta2), y2 + side*(TRACK_WIDTH+BORDER)*math.sin(beta2))
+                    self.road_poly.append(( [b1_l, b1_r, b2_r, b2_l], (1,1,1) if i%2==0 else (1,0,0) ))
 
         # Create tiles
-        for i in range(len(track)):
-            alpha1, beta1, x1, y1 = track[i]
-            alpha2, beta2, x2, y2 = track[i-1]
-            road1_l = (x1 - TRACK_WIDTH*math.cos(beta1), y1 - TRACK_WIDTH*math.sin(beta1))
-            road1_r = (x1 + TRACK_WIDTH*math.cos(beta1), y1 + TRACK_WIDTH*math.sin(beta1))
-            road2_l = (x2 - TRACK_WIDTH*math.cos(beta2), y2 - TRACK_WIDTH*math.sin(beta2))
-            road2_r = (x2 + TRACK_WIDTH*math.cos(beta2), y2 + TRACK_WIDTH*math.sin(beta2))
-            t = self.world.CreateStaticBody( fixtures = fixtureDef(
-                shape=polygonShape(vertices=[road1_l, road1_r, road2_r, road2_l])
-                ))
-            t.userData = t
-            c = 0.01*(i%3)
-            t.color = [ROAD_COLOR[0] + c, ROAD_COLOR[1] + c, ROAD_COLOR[2] + c]
-            t.road_visited = False
-            t.road_friction = 1.0
-            t.fixtures[0].sensor = True
-            self.road_poly.append(( [road1_l, road1_r, road2_r, road2_l], t.color ))
-            self.road.append(t)
-            if border[i]:
-                side = np.sign(beta2 - beta1)
-                b1_l = (x1 + side* TRACK_WIDTH        *math.cos(beta1), y1 + side* TRACK_WIDTH        *math.sin(beta1))
-                b1_r = (x1 + side*(TRACK_WIDTH+BORDER)*math.cos(beta1), y1 + side*(TRACK_WIDTH+BORDER)*math.sin(beta1))
-                b2_l = (x2 + side* TRACK_WIDTH        *math.cos(beta2), y2 + side* TRACK_WIDTH        *math.sin(beta2))
-                b2_r = (x2 + side*(TRACK_WIDTH+BORDER)*math.cos(beta2), y2 + side*(TRACK_WIDTH+BORDER)*math.sin(beta2))
-                self.road_poly.append(( [b1_l, b1_r, b2_r, b2_l], (1,1,1) if i%2==0 else (1,0,0) ))
-        self.track = track
+        for track, border in zip(tracks,borders):
+            for i in range(len(track)):
+                alpha1, beta1, x1, y1 = track[i]
+                alpha2, beta2, x2, y2 = track[i-1]
+                road1_l = (x1 - TRACK_WIDTH*math.cos(beta1), y1 - TRACK_WIDTH*math.sin(beta1))
+                road1_r = (x1 + TRACK_WIDTH*math.cos(beta1), y1 + TRACK_WIDTH*math.sin(beta1))
+                road2_l = (x2 - TRACK_WIDTH*math.cos(beta2), y2 - TRACK_WIDTH*math.sin(beta2))
+                road2_r = (x2 + TRACK_WIDTH*math.cos(beta2), y2 + TRACK_WIDTH*math.sin(beta2))
+                t = self.world.CreateStaticBody( fixtures = fixtureDef(
+                    shape=polygonShape(vertices=[road1_l, road1_r, road2_r, road2_l])
+                    ))
+                t.userData = t
+                c = 0.01*(i%3)
+                t.color = [ROAD_COLOR[0] + c, ROAD_COLOR[1] + c, ROAD_COLOR[2] + c]
+                t.road_visited = False
+                t.road_friction = 1.0
+                t.fixtures[0].sensor = True
+                self.road_poly.append(( [road1_l, road1_r, road2_r, road2_l], t.color ))
+                self.road.append(t)
+
+        self.track = sum(tracks, [])
         return True
 
     def reset(self):
@@ -357,12 +366,12 @@ class CarRacing(gym.Env, EzPickle):
         if np.linalg.norm(vel) > 0.5:
             angle = math.atan2(vel[0], vel[1])
         # TODO to screenshots read comments below
-        #self.transform.set_scale(zoom, zoom) # get screenshots commet this out
+        self.transform.set_scale(zoom, zoom) # get screenshots commet this out
         self.transform.set_translation(
             # to get nice screenshots use WINDOW_X/2
-            WINDOW_W/2,# - (scroll_x*zoom*math.cos(angle) - scroll_y*zoom*math.sin(angle)), 
-            WINDOW_H/2)#4 - (scroll_x*zoom*math.sin(angle) + scroll_y*zoom*math.cos(angle)) )
-        #self.transform.set_rotation(angle) # get screenshots commet this out
+            WINDOW_W/2 - (scroll_x*zoom*math.cos(angle) - scroll_y*zoom*math.sin(angle)), 
+            WINDOW_H/4 - (scroll_x*zoom*math.sin(angle) + scroll_y*zoom*math.cos(angle)) )
+        self.transform.set_rotation(angle) # get screenshots commet this out
 
         self.car.draw(self.viewer, mode!="state_pixels")
 
