@@ -1,4 +1,4 @@
-import sys, math
+import sys, math, pdb
 import numpy as np
 
 import Box2D
@@ -11,6 +11,8 @@ from gym.utils import colorize, seeding, EzPickle
 
 import pyglet
 from pyglet import gl
+
+from shapely.geometry import Polygon
 
 # Easiest continuous control task to learn from pixels, a top-down racing environment.
 # Discreet control is reasonable in this environment as well, on/off discretisation is
@@ -50,7 +52,7 @@ SCALE       = 6.0        # Track scale
 TRACK_RAD   = 900/SCALE  # Track is heavily morphed circle with this radius
 PLAYFIELD   = 2000/SCALE # Game over boundary
 FPS         = 50
-ZOOM        = 2.7        # Camera zoom, 0.25 to take screenshots, default 2.7
+ZOOM        = 0.25        # Camera zoom, 0.25 to take screenshots, default 2.7
 ZOOM_FOLLOW = True       # Set to False for fixed view (don't use zoom)
 
 
@@ -295,7 +297,8 @@ class CarRacing(gym.Env, EzPickle):
                 self.road_poly.append(( [road1_l, road1_r, road2_r, road2_l], t.color ))
                 self.road.append(t)
 
-        self.track = sum(tracks, [])
+        self.tracks = tracks
+        self.track  = sum(tracks, [])
         return True
 
     def reset(self):
@@ -365,13 +368,13 @@ class CarRacing(gym.Env, EzPickle):
         vel = self.car.hull.linearVelocity
         if np.linalg.norm(vel) > 0.5:
             angle = math.atan2(vel[0], vel[1])
+        self.transform.set_scale(zoom, zoom)
         # TODO to screenshots read comments below
-        self.transform.set_scale(zoom, zoom) # get screenshots commet this out
         self.transform.set_translation(
             # to get nice screenshots use WINDOW_X/2
-            WINDOW_W/2 - (scroll_x*zoom*math.cos(angle) - scroll_y*zoom*math.sin(angle)), 
-            WINDOW_H/4 - (scroll_x*zoom*math.sin(angle) + scroll_y*zoom*math.cos(angle)) )
-        self.transform.set_rotation(angle) # get screenshots commet this out
+            WINDOW_W/2,# - (scroll_x*zoom*math.cos(angle) - scroll_y*zoom*math.sin(angle)), 
+            WINDOW_H/2)#4 - (scroll_x*zoom*math.sin(angle) + scroll_y*zoom*math.cos(angle)) )
+        #self.transform.set_rotation(angle) # get screenshots commet this out
 
         self.car.draw(self.viewer, mode!="state_pixels")
 
@@ -449,7 +452,7 @@ class CarRacing(gym.Env, EzPickle):
         gl.glEnd()
 
     def render_road_lines(self):
-        gl.glBegin(gl.GL_QUADS)
+        #gl.glBegin(gl.GL_QUADS)
         #for poly, color in self.road_poly:
             #gl.glColor4f(0, 0, 0, 1)
             # left, right, left2, right2
@@ -458,7 +461,42 @@ class CarRacing(gym.Env, EzPickle):
             #gl.glVertex3f(poly[2][0]-1, poly[2][1]-1, 0)
             #gl.glVertex3f(poly[1][0]-1, poly[1][1]-1, 0)
             
-        gl.glEnd()
+        #gl.glEnd()
+        track1 = np.array(self.tracks[0])
+        track2 = np.array(self.tracks[1])
+        p1 = Polygon(track1[:,[2,3]])
+        p2 = Polygon(track2[:,[2,3]])
+        intersection = p1.intersection(p2)
+        xcoords,ycoords = intersection.exterior.coords.xy
+
+        points1 = track1[:,[2,3]]
+        points2 = track2[:,[2,3]]
+        points3 = np.array(list(zip(xcoords,ycoords)))
+
+        #pdb.set_trace()
+        inter = [x for x in points2 if (np.linalg.norm(points1-x, axis=1) <= TRACK_WIDTH*1.25).sum() >= 1]
+        inter2 = [x for x in points2 if (np.linalg.norm(points1-x, axis=1) <= TRACK_WIDTH/4).sum() >= 1]
+        #inter = [x for x in inter   if (np.linalg.norm(points2-x, axis=1) <= 1).sum() >= 1]
+
+        for x,y in inter:
+            gl.glBegin(gl.GL_QUADS)
+            gl.glColor4f(0, 0, 0, 1)
+            gl.glVertex3f(x+1,y+1,0)
+            gl.glVertex3f(x-1,y+1,0)
+            gl.glVertex3f(x-1,y-1,0)
+            gl.glVertex3f(x+1,y-1,0)
+            gl.glEnd()
+        for x,y in inter2:
+            gl.glBegin(gl.GL_QUADS)
+            gl.glColor4f(250, 0, 0, 1)
+            gl.glVertex3f(x+1,y+1,0)
+            gl.glVertex3f(x-1,y+1,0)
+            gl.glVertex3f(x-1,y-1,0)
+            gl.glVertex3f(x+1,y-1,0)
+            gl.glEnd()
+
+        
+        #pdb.set_trace()
 
     def render_indicators(self, W, H):
         gl.glBegin(gl.GL_QUADS)
