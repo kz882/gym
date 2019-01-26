@@ -288,7 +288,7 @@ class CarRacing(gym.Env, EzPickle):
                     ))
                 t.userData = t
                 c = 0.01*(i%3)
-                t.color = [ROAD_COLOR[0] + c, ROAD_COLOR[1] + c, ROAD_COLOR[2] + c]
+                t.color = [ROAD_COLOR[0], ROAD_COLOR[1], ROAD_COLOR[2]]
                 t.road_visited = False
                 t.road_friction = 1.0
                 t.fixtures[0].sensor = True
@@ -392,6 +392,7 @@ class CarRacing(gym.Env, EzPickle):
             gl.glViewport(0, 0, VP_W, VP_H)
             t.enable()
             self.render_road()
+            self.render_road_lines()
             for geom in self.viewer.onetime_geoms:
                 geom.render()
             t.disable()
@@ -411,6 +412,7 @@ class CarRacing(gym.Env, EzPickle):
             gl.glViewport(0, 0, WINDOW_W, WINDOW_H)
             t.enable()
             self.render_road()
+            self.render_road_lines()
             for geom in self.viewer.onetime_geoms:
                 geom.render()
             t.disable()
@@ -444,6 +446,18 @@ class CarRacing(gym.Env, EzPickle):
             gl.glColor4f(color[0], color[1], color[2], 1)
             for p in poly:
                 gl.glVertex3f(p[0], p[1], 0)
+        gl.glEnd()
+
+    def render_road_lines(self):
+        gl.glBegin(gl.GL_QUADS)
+        #for poly, color in self.road_poly:
+            #gl.glColor4f(0, 0, 0, 1)
+            # left, right, left2, right2
+            #gl.glVertex3f(poly[1][0], poly[1][1], 0)
+            #gl.glVertex3f(poly[2][0], poly[2][1], 0)
+            #gl.glVertex3f(poly[2][0]-1, poly[2][1]-1, 0)
+            #gl.glVertex3f(poly[1][0]-1, poly[1][1]-1, 0)
+            
         gl.glEnd()
 
     def render_indicators(self, W, H):
