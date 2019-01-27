@@ -436,27 +436,6 @@ class CarRacing(gym.Env, EzPickle):
             self.viewer.close()
             self.viewer = None
 
-    def render_road(self):
-        gl.glBegin(gl.GL_QUADS)
-        gl.glColor4f(0.4, 0.8, 0.4, 1.0)
-        gl.glVertex3f(-PLAYFIELD, +PLAYFIELD, 0)
-        gl.glVertex3f(+PLAYFIELD, +PLAYFIELD, 0)
-        gl.glVertex3f(+PLAYFIELD, -PLAYFIELD, 0)
-        gl.glVertex3f(-PLAYFIELD, -PLAYFIELD, 0)
-        gl.glColor4f(0.4, 0.9, 0.4, 1.0)
-        k = PLAYFIELD/20.0
-        for x in range(-20, 20, 2):
-            for y in range(-20, 20, 2):
-                gl.glVertex3f(k*x + k, k*y + 0, 0)
-                gl.glVertex3f(k*x + 0, k*y + 0, 0)
-                gl.glVertex3f(k*x + 0, k*y + k, 0)
-                gl.glVertex3f(k*x + k, k*y + k, 0)
-        for poly, color in self.road_poly:
-            gl.glColor4f(color[0], color[1], color[2], 1)
-            for p in poly:
-                gl.glVertex3f(p[0], p[1], 0)
-        gl.glEnd()
-
     def _remove_roads(self):
 
         def _get_section(first,last,track):
@@ -487,7 +466,6 @@ class CarRacing(gym.Env, EzPickle):
 
         inter1 = np.array([x for x in points2 if (np.linalg.norm(points1[:,1,:]-x[1:], axis=1) <= TRACK_WIDTH*1.25).sum() >= 1])
         inter2 = np.array([x for x in points2 if (np.linalg.norm(points1[:,1,:]-x[1:], axis=1) <= TRACK_WIDTH/3.5 ).sum() >= 1])
-        #inter = [x for x in inter   if (np.linalg.norm(points2-x, axis=1) <= 1).sum() >= 1]
 
         intersections = []
         for i in range(inter2.shape[0]):
@@ -535,6 +513,26 @@ class CarRacing(gym.Env, EzPickle):
         self.tracks[0] = track1
         self.tracks[1] = track2
 
+    def render_road(self):
+        gl.glBegin(gl.GL_QUADS)
+        gl.glColor4f(0.4, 0.8, 0.4, 1.0)
+        gl.glVertex3f(-PLAYFIELD, +PLAYFIELD, 0)
+        gl.glVertex3f(+PLAYFIELD, +PLAYFIELD, 0)
+        gl.glVertex3f(+PLAYFIELD, -PLAYFIELD, 0)
+        gl.glVertex3f(-PLAYFIELD, -PLAYFIELD, 0)
+        gl.glColor4f(0.4, 0.9, 0.4, 1.0)
+        k = PLAYFIELD/20.0
+        for x in range(-20, 20, 2):
+            for y in range(-20, 20, 2):
+                gl.glVertex3f(k*x + k, k*y + 0, 0)
+                gl.glVertex3f(k*x + 0, k*y + 0, 0)
+                gl.glVertex3f(k*x + 0, k*y + k, 0)
+                gl.glVertex3f(k*x + k, k*y + k, 0)
+        for poly, color in self.road_poly:
+            gl.glColor4f(color[0], color[1], color[2], 1)
+            for p in poly:
+                gl.glVertex3f(p[0], p[1], 0)
+        gl.glEnd()
 
     def render_road_lines(self):
         #gl.glBegin(gl.GL_QUADS)
