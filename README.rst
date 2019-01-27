@@ -1,5 +1,5 @@
 OpenAi Gym with CarRacing-v1 (unofficial)
-*****************************************
+****************************************
 
 This repo has improvements on the complexity for CarRacing-v1
 
@@ -13,6 +13,7 @@ image
 
 To Improve
 ==========
+* Change representation of maps
 * Add more than one line
 * Detect change of line
 * Add road lines
@@ -21,7 +22,7 @@ To Improve
  
 ---
 
-Original Read (Official one)
+Original Readme (Official one)
 ****************************
 
 **Status:** Maintenance (expect bug fixes and minor updates)

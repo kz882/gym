@@ -1,5 +1,6 @@
-import sys, math, pdb
+import sys, math
 import numpy as np
+from pdb import set_trace
 
 import Box2D
 from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape, revoluteJointDef, contactListener)
@@ -52,7 +53,7 @@ SCALE       = 6.0        # Track scale
 TRACK_RAD   = 900/SCALE  # Track is heavily morphed circle with this radius
 PLAYFIELD   = 2000/SCALE # Game over boundary
 FPS         = 50
-ZOOM        = 0.25        # Camera zoom, 0.25 to take screenshots, default 2.7
+ZOOM        = 2.7        # Camera zoom, 0.25 to take screenshots, default 2.7
 ZOOM_FOLLOW = True       # Set to False for fixed view (don't use zoom)
 
 
@@ -233,6 +234,7 @@ class CarRacing(gym.Env, EzPickle):
         if well_glued_together > TRACK_DETAIL_STEP:
             return False
 
+        track = [[track[i-1],track[i]] for i in range(len(track))]
         return track
 
     def _create_track(self):
@@ -244,16 +246,19 @@ class CarRacing(gym.Env, EzPickle):
             if not track: return track
             tracks.append(track)
 
+        self.tracks = tracks
+        self._remove_roads()
+
         # Red-white border on hard turns
         borders = []
-        for track in tracks:
+        for track in self.tracks:
             border = [False]*len(track)
             for i in range(1,len(track)):
                 good = True
                 oneside = 0
                 for neg in range(BORDER_MIN_COUNT):
-                    beta1 = track[i-neg-0][1]
-                    beta2 = track[i-neg-1][1]
+                    beta1 = track[i-neg][1][1]
+                    beta2 = track[i-neg][0][1]
                     good &= abs(beta1 - beta2) > TRACK_TURN_RATE*0.2
                     oneside += np.sign(beta1 - beta2)
                 good &= abs(oneside) == BORDER_MIN_COUNT
@@ -264,10 +269,10 @@ class CarRacing(gym.Env, EzPickle):
             borders.append(border)
                 
         # Creating borders for printing
-        for track, border in zip(tracks,borders):
+        for track, border in zip(self.tracks,borders):
             for i in range(len(track)):
-                alpha1, beta1, x1, y1 = track[i]
-                alpha2, beta2, x2, y2 = track[i-1]
+                alpha1, beta1, x1, y1 = track[i][1]
+                alpha2, beta2, x2, y2 = track[i][0]
                 if border[i]:
                     side = np.sign(beta2 - beta1)
                     b1_l = (x1 + side* TRACK_WIDTH        *math.cos(beta1), y1 + side* TRACK_WIDTH        *math.sin(beta1))
@@ -276,11 +281,12 @@ class CarRacing(gym.Env, EzPickle):
                     b2_r = (x2 + side*(TRACK_WIDTH+BORDER)*math.cos(beta2), y2 + side*(TRACK_WIDTH+BORDER)*math.sin(beta2))
                     self.road_poly.append(( [b1_l, b1_r, b2_r, b2_l], (1,1,1) if i%2==0 else (1,0,0) ))
 
+
         # Create tiles
-        for track, border in zip(tracks,borders):
+        for track, border in zip(self.tracks,borders):
             for i in range(len(track)):
-                alpha1, beta1, x1, y1 = track[i]
-                alpha2, beta2, x2, y2 = track[i-1]
+                alpha1, beta1, x1, y1 = track[i][1]
+                alpha2, beta2, x2, y2 = track[i][0]
                 road1_l = (x1 - TRACK_WIDTH*math.cos(beta1), y1 - TRACK_WIDTH*math.sin(beta1))
                 road1_r = (x1 + TRACK_WIDTH*math.cos(beta1), y1 + TRACK_WIDTH*math.sin(beta1))
                 road2_l = (x2 - TRACK_WIDTH*math.cos(beta2), y2 - TRACK_WIDTH*math.sin(beta2))
@@ -297,8 +303,8 @@ class CarRacing(gym.Env, EzPickle):
                 self.road_poly.append(( [road1_l, road1_r, road2_r, road2_l], t.color ))
                 self.road.append(t)
 
-        self.tracks = tracks
-        self.track  = sum(tracks, [])
+
+        self.track  = np.concatenate(self.tracks)#sum(self.tracks, [])
         return True
 
     def reset(self):
@@ -314,7 +320,7 @@ class CarRacing(gym.Env, EzPickle):
             success = self._create_track()
             if success: break
             print("retry to generate track (normal if there are not many of this messages)")
-        self.car = Car(self.world, *self.track[0][1:4])
+        self.car = Car(self.world, *self.track[0][1][1:4])
 
         return self.step(None)[0]
 
@@ -372,9 +378,9 @@ class CarRacing(gym.Env, EzPickle):
         # TODO to screenshots read comments below
         self.transform.set_translation(
             # to get nice screenshots use WINDOW_X/2
-            WINDOW_W/2,# - (scroll_x*zoom*math.cos(angle) - scroll_y*zoom*math.sin(angle)), 
-            WINDOW_H/2)#4 - (scroll_x*zoom*math.sin(angle) + scroll_y*zoom*math.cos(angle)) )
-        #self.transform.set_rotation(angle) # get screenshots commet this out
+            WINDOW_W/2 - (scroll_x*zoom*math.cos(angle) - scroll_y*zoom*math.sin(angle)), 
+            WINDOW_H/4 - (scroll_x*zoom*math.sin(angle) + scroll_y*zoom*math.cos(angle)) )
+        self.transform.set_rotation(angle) # get screenshots commet this out
 
         self.car.draw(self.viewer, mode!="state_pixels")
 
@@ -451,6 +457,85 @@ class CarRacing(gym.Env, EzPickle):
                 gl.glVertex3f(p[0], p[1], 0)
         gl.glEnd()
 
+    def _remove_roads(self):
+
+        def _get_section(first,last,track):
+            sec = []
+            pos = 0
+            found = False
+            while 1:
+                #set_trace()
+                point = track[pos%track.shape[0],:,2:]
+                if np.linalg.norm(point[1]-first) <= TRACK_WIDTH/2:
+                    found = True
+                if found:
+                    sec.append(point)
+                    if np.linalg.norm(point[1]-last) <= TRACK_WIDTH/2:
+                        break
+                pos = pos+1
+                if pos / track.shape[0] >= 2: break
+            if sec == []: return False
+            return np.array(sec)
+
+        THRESHOLD = TRACK_WIDTH*2
+
+        track1 = np.array(self.tracks[0])
+        track2 = np.array(self.tracks[1])
+
+        points1 = track1[:,:,[2,3]]
+        points2 = track2[:,:,[2,3]]
+
+        inter1 = np.array([x for x in points2 if (np.linalg.norm(points1[:,1,:]-x[1:], axis=1) <= TRACK_WIDTH*1.25).sum() >= 1])
+        inter2 = np.array([x for x in points2 if (np.linalg.norm(points1[:,1,:]-x[1:], axis=1) <= TRACK_WIDTH/3.5 ).sum() >= 1])
+        #inter = [x for x in inter   if (np.linalg.norm(points2-x, axis=1) <= 1).sum() >= 1]
+
+        intersections = []
+        for i in range(inter2.shape[0]):
+            if np.array_equal(inter2[i-1,1,:],inter2[i,0,:]) == False or np.array_equal(inter2[i,1,:], inter2[((i+1)%len(inter2)),0,:]) == False:
+                intersections.append(inter2[i])
+        intersections = np.array(intersections)
+
+        # For each point in intersection
+        # > get section of both roads
+        # > For each point in section in second road
+        # > > get min distance
+        # > get max of distances
+        # if max dist < threshold remove
+        to_be_deleted = None
+        for i in range(intersections.shape[0]):
+            _, first = intersections[i-1]
+            last,_ = intersections[i]
+
+            sec1 = _get_section(first,last,track1)
+            sec2 = _get_section(first,last,track2)
+            
+            if sec1 is not False and sec2 is not False:
+                max_min_d = 0
+                remove = False
+                for point in sec1[:,1]:
+                    #set_trace()
+                    dist = np.linalg.norm(sec2[:,1] - point, axis=1).min()
+                    max_min_d = dist if max_min_d < dist else max_min_d
+                if max_min_d < THRESHOLD*2: remove = True
+                
+                # Removing tiles
+                if remove:
+                    for point in sec2:
+                        idx = np.all(track2[:,:,[2,3]] == point, axis=(1,2))
+                        if to_be_deleted is None: 
+                            to_be_deleted = track2[idx]
+                        else:
+                            to_be_deleted = np.concatenate((to_be_deleted, track2[idx]))
+                        track2 = track2[idx == False]
+                       
+        self.to_be_deleted = to_be_deleted
+        self.intersections = intersections
+
+        
+        self.tracks[0] = track1
+        self.tracks[1] = track2
+
+
     def render_road_lines(self):
         #gl.glBegin(gl.GL_QUADS)
         #for poly, color in self.road_poly:
@@ -460,43 +545,29 @@ class CarRacing(gym.Env, EzPickle):
             #gl.glVertex3f(poly[2][0], poly[2][1], 0)
             #gl.glVertex3f(poly[2][0]-1, poly[2][1]-1, 0)
             #gl.glVertex3f(poly[1][0]-1, poly[1][1]-1, 0)
-            
         #gl.glEnd()
-        track1 = np.array(self.tracks[0])
-        track2 = np.array(self.tracks[1])
-        p1 = Polygon(track1[:,[2,3]])
-        p2 = Polygon(track2[:,[2,3]])
-        intersection = p1.intersection(p2)
-        xcoords,ycoords = intersection.exterior.coords.xy
-
-        points1 = track1[:,[2,3]]
-        points2 = track2[:,[2,3]]
-        points3 = np.array(list(zip(xcoords,ycoords)))
-
-        #pdb.set_trace()
-        inter = [x for x in points2 if (np.linalg.norm(points1-x, axis=1) <= TRACK_WIDTH*1.25).sum() >= 1]
-        inter2 = [x for x in points2 if (np.linalg.norm(points1-x, axis=1) <= TRACK_WIDTH/4).sum() >= 1]
-        #inter = [x for x in inter   if (np.linalg.norm(points2-x, axis=1) <= 1).sum() >= 1]
-
-        for x,y in inter:
-            gl.glBegin(gl.GL_QUADS)
-            gl.glColor4f(0, 0, 0, 1)
-            gl.glVertex3f(x+1,y+1,0)
-            gl.glVertex3f(x-1,y+1,0)
-            gl.glVertex3f(x-1,y-1,0)
-            gl.glVertex3f(x+1,y-1,0)
-            gl.glEnd()
-        for x,y in inter2:
-            gl.glBegin(gl.GL_QUADS)
-            gl.glColor4f(250, 0, 0, 1)
-            gl.glVertex3f(x+1,y+1,0)
-            gl.glVertex3f(x-1,y+1,0)
-            gl.glVertex3f(x-1,y-1,0)
-            gl.glVertex3f(x+1,y-1,0)
-            gl.glEnd()
-
         
-        #pdb.set_trace()
+        print_intersections = True
+
+        if self.to_be_deleted is not None and print_intersections:
+            for x,y in self.to_be_deleted[:,1,[2,3]]:
+                gl.glBegin(gl.GL_QUADS)
+                gl.glColor4f(0, 0, 0, 1)
+                gl.glVertex3f(x+3,y+3,0)
+                gl.glVertex3f(x-3,y+3,0)
+                gl.glVertex3f(x-3,y-3,0)
+                gl.glVertex3f(x+3,y-3,0)
+                gl.glEnd()
+
+        if self.intersections is not None and print_intersections:
+            for x,y in self.intersections[:,1]:
+                gl.glBegin(gl.GL_QUADS)
+                gl.glColor4f(250, 0, 0, 1)
+                gl.glVertex3f(x+1,y+1,0)
+                gl.glVertex3f(x-1,y+1,0)
+                gl.glVertex3f(x-1,y-1,0)
+                gl.glVertex3f(x+1,y-1,0)
+                gl.glEnd()
 
     def render_indicators(self, W, H):
         gl.glBegin(gl.GL_QUADS)
