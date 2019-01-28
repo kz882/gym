@@ -515,52 +515,14 @@ class CarRacing(gym.Env, EzPickle):
                     if removed_idx.shape[0] > 0:
                         #set_trace()
                         min_idx = removed_idx.min()
+                        if min_idx >= track2.shape[0]:
+                            min_idx = track2.shape[0]-1
                         for i in [-1,0]:
                             # Goal: Find closest tile in positive angle (0-pi)
 
-                            tile = track2[min_idx-i,:,:]
-                            if i == -1: tile = tile[::-1,:]
-
-                            org_tile = tile
-                            tile = tile[:,2:]
-
-                            tmp = tile[1] - tile[0] # Direction of tile
-                            org_dgr = math.atan2(tmp[1],tmp[0]) # Angle of tile
-
-                            # Directions
-                            dirs = track1[:,1,2:] - tile[0]
-
-                            # Distances
-                            dist = np.linalg.norm(dirs, axis=1)
-
-                            # Angles
-                            dgrs = np.arctan2(dirs[:,1], dirs[:,0])
-                            dgrs_flt = (dgrs < org_dgr + math.pi/4)*(dgrs > org_dgr - math.pi/4)
-                            
-                            # Distance is greater than 2 lengts
-                            dist_flt = (dist > 7)*(dist < 20)
-
-                            # Create tile joining those together
-                            mask = np.where(dgrs_flt*dist_flt)[0]
-                            if len(mask) > 0:
-                                min_d_idx = mask[dist[mask].argmin()]
-
-                                # Closest tile 
-                                next_tile = track1[min_d_idx,1,:]
-
-                                # Create polygon to draw
-                                _,beta1,x1, y1 = org_tile[0]
-
-                                _,beta2,x2,y2  = next_tile
-                                #set_trace()
-                                road1_l = (x1 - TRACK_WIDTH*math.cos(beta1), y1 - TRACK_WIDTH*math.sin(beta1))
-                                road1_r = (x1 + TRACK_WIDTH*math.cos(beta1), y1 + TRACK_WIDTH*math.sin(beta1))
-                                road2_l = (x2 - TRACK_WIDTH*math.cos(beta2), y2 - TRACK_WIDTH*math.sin(beta2))
-                                road2_r = (x2 + TRACK_WIDTH*math.cos(beta2), y2 + TRACK_WIDTH*math.sin(beta2))
-                                #color = [ROAD_COLOR[0], ROAD_COLOR[1], ROAD_COLOR[2]]
-                                color = [251, 0, 0]
-                                self.road_poly_junctions.append(( [road1_l, road1_r, road2_r, road2_l], color ))
-                       
+                            tile = track2[min_idx+i,:,:]
+                            if i == -1: tile[::-1,:]
+                            # DONT KNWO WHAT TO DO HERE
         self.to_be_deleted = to_be_deleted
         self.intersections = intersections
 
