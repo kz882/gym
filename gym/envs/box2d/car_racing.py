@@ -443,7 +443,6 @@ class CarRacing(gym.Env, EzPickle):
             pos = 0
             found = False
             while 1:
-                #set_trace()
                 point = track[pos%track.shape[0],:,2:]
                 if np.linalg.norm(point[1]-first) <= TRACK_WIDTH/2:
                     found = True
@@ -491,7 +490,6 @@ class CarRacing(gym.Env, EzPickle):
                 max_min_d = 0
                 remove = False
                 for point in sec1[:,1]:
-                    #set_trace()
                     dist = np.linalg.norm(sec2[:,1] - point, axis=1).min()
                     max_min_d = dist if max_min_d < dist else max_min_d
                 if max_min_d < THRESHOLD*2: remove = True
@@ -504,6 +502,46 @@ class CarRacing(gym.Env, EzPickle):
                             to_be_deleted = track2[idx]
                         else:
                             to_be_deleted = np.concatenate((to_be_deleted, track2[idx]))
+                        # Before deleting section, create gray tile to smoth track
+                        # Add connection tile only for first and last tile of section
+                        for tile in track2[idx,:,2:][-1:2]:
+                            # Goal: Find closest tile in positive angle (0-pi)
+
+                            tmp = tile[1] - tile[0] # Direction of tile
+                            org_dgr = math.atan2(tmp[1],tmp[0]) # Angle of tile
+
+                            # Directions
+                            dirs = track1[:,1,:2:] - tile[0]
+
+                            # Distances
+                            dist = np.linalg.norm(dirs, axis=1)
+
+                            # Angles
+                            dgrs = np.arctan2(dirs[:,1], dirs[:,0])
+                            dgrs_flt = (dgrs < org_dgr + math.pi/2)*(dgrs > org_dgr - math.pi/2)
+                            dgrs_flt = [True*len(track1)]
+                            
+                            # Create tile joining those together
+                            mask = np.where(dgrs_flt)[0]
+                            if len(mask) > 0:
+                                min_d_idx = mask[dist[mask].argmin()]
+
+                                # Closest tile 
+                                next_tile = track1[min_d_idx,1,:]
+
+                                # Create polygon to draw
+                                x1, y1 = tile[0]
+                                org_dgr += math.pi/2
+                                _,beta2,x2,y2  = next_tile
+                                #set_trace()
+                                road1_l = (x1 - TRACK_WIDTH*math.cos(org_dgr), y1 - TRACK_WIDTH*math.sin(org_dgr))
+                                road1_r = (x1 + TRACK_WIDTH*math.cos(org_dgr), y1 + TRACK_WIDTH*math.sin(org_dgr))
+                                road2_l = (x2 - TRACK_WIDTH*math.cos(beta2), y2 - TRACK_WIDTH*math.sin(beta2))
+                                road2_r = (x2 + TRACK_WIDTH*math.cos(beta2), y2 + TRACK_WIDTH*math.sin(beta2))
+                                #color = [ROAD_COLOR[0], ROAD_COLOR[1], ROAD_COLOR[2]]
+                                color = [250, 0, 0]
+                                self.road_poly.append(( [road1_l, road1_r, road2_r, road2_l], color ))
+
                         track2 = track2[idx == False]
                        
         self.to_be_deleted = to_be_deleted
@@ -535,15 +573,6 @@ class CarRacing(gym.Env, EzPickle):
         gl.glEnd()
 
     def render_road_lines(self):
-        #gl.glBegin(gl.GL_QUADS)
-        #for poly, color in self.road_poly:
-            #gl.glColor4f(0, 0, 0, 1)
-            # left, right, left2, right2
-            #gl.glVertex3f(poly[1][0], poly[1][1], 0)
-            #gl.glVertex3f(poly[2][0], poly[2][1], 0)
-            #gl.glVertex3f(poly[2][0]-1, poly[2][1]-1, 0)
-            #gl.glVertex3f(poly[1][0]-1, poly[1][1]-1, 0)
-        #gl.glEnd()
         
         print_intersections = True
 
