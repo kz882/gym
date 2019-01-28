@@ -53,9 +53,8 @@ SCALE       = 6.0        # Track scale
 TRACK_RAD   = 900/SCALE  # Track is heavily morphed circle with this radius
 PLAYFIELD   = 2000/SCALE # Game over boundary
 FPS         = 50
-ZOOM        = 2.7        # Camera zoom, 0.25 to take screenshots, default 2.7
+ZOOM        = 0.25        # Camera zoom, 0.25 to take screenshots, default 2.7
 ZOOM_FOLLOW = True       # Set to False for fixed view (don't use zoom)
-
 
 TRACK_DETAIL_STEP = 21/SCALE
 TRACK_TURN_RATE = 0.31
@@ -63,6 +62,7 @@ TRACK_WIDTH = 40/SCALE
 BORDER = 8/SCALE
 BORDER_MIN_COUNT = 4
 
+NUM_TRACKS = 2
 ROAD_COLOR = [0.4, 0.4, 0.4]
 
 class FrictionDetector(contactListener):
@@ -289,39 +289,43 @@ class CarRacing(gym.Env, EzPickle):
                 obstacle = np.random.binomial(1,prob_obstacle)
                 alpha1, beta1, x1, y1 = track[i][1]
                 alpha2, beta2, x2, y2 = track[i][0]
-                road1_l = (x1 - TRACK_WIDTH*math.cos(beta1), y1 - TRACK_WIDTH*math.sin(beta1))
-                road1_r = (x1 + TRACK_WIDTH*math.cos(beta1), y1 + TRACK_WIDTH*math.sin(beta1))
-                road2_l = (x2 - TRACK_WIDTH*math.cos(beta2), y2 - TRACK_WIDTH*math.sin(beta2))
-                road2_r = (x2 + TRACK_WIDTH*math.cos(beta2), y2 + TRACK_WIDTH*math.sin(beta2))
-                t = self.world.CreateStaticBody( fixtures = fixtureDef(
-                    shape=polygonShape(vertices=[road1_l, road1_r, road2_r, road2_l])
-                    ))
-                t.userData = t
-                t.obstacle = obstacle
-                c = 0.01*(i%3)
-                t.color = [ROAD_COLOR[0], ROAD_COLOR[1], ROAD_COLOR[2]]
-                t.road_visited = False
-                t.road_friction = 1.0
-                t.fixtures[0].sensor = True
-                self.road_poly.append(( [road1_l, road1_r, road2_r, road2_l], t.color ))
-                self.road.append(t)
 
-                # Adding obstacles
-                if obstacle == 1:
-                    x = (x1+x2)/2
-                    y = (y1+y2)/2 + TRACK_WIDTH*math.sin(beta1)/2
-                    l1 = (x+0.1, y+0.4)
-                    r1 = (x-0.1, y+0.4)
-                    l2 = (x-0.4, y-0.4)
-                    r2 = (x+0.4, y-0.4)
-                    color = [1,0.5,0.3]
-                    self.road_poly.append(( [l1,r1,l2,r2], color ))
-                    l1 = (x+0.5, y-0.4)
-                    r1 = (x-0.5, y-0.4)
-                    l2 = (x-0.5, y-0.6)
-                    r2 = (x+0.5, y-0.6)
-                    color = [1,0.5,0.3]
-                    self.road_poly.append(( [l1,r1,l2,r2], color ))
+                for lane in range(NUM_TRACKS):
+                    r = 1- ((lane+1)%NUM_TRACKS)
+                    l = 1- ((lane+2)%NUM_TRACKS)
+                    road1_l = (x1 - l*TRACK_WIDTH*math.cos(beta1), y1 - TRACK_WIDTH*math.sin(beta1))
+                    road1_r = (x1 + r*TRACK_WIDTH*math.cos(beta1), y1 + TRACK_WIDTH*math.sin(beta1))
+                    road2_l = (x2 - l*TRACK_WIDTH*math.cos(beta2), y2 - TRACK_WIDTH*math.sin(beta2))
+                    road2_r = (x2 + r*TRACK_WIDTH*math.cos(beta2), y2 + TRACK_WIDTH*math.sin(beta2))
+                    t = self.world.CreateStaticBody( fixtures = fixtureDef(
+                        shape=polygonShape(vertices=[road1_l, road1_r, road2_r, road2_l])
+                        ))
+                    t.userData = t
+                    t.obstacle = obstacle
+                    c = 0.01*(i%3)
+                    t.color = [ROAD_COLOR[0]+20*lane, ROAD_COLOR[1], ROAD_COLOR[2]]
+                    t.road_visited = False
+                    t.road_friction = 1.0
+                    t.fixtures[0].sensor = True
+                    self.road_poly.append(( [road1_l, road1_r, road2_r, road2_l], t.color ))
+                    self.road.append(t)
+
+                    # Adding obstacles
+                    if obstacle == 1:
+                        x = (x1+x2)/2
+                        y = (y1+y2)/2 + TRACK_WIDTH*math.sin(beta1)/2
+                        l1 = (x+0.1, y+0.4)
+                        r1 = (x-0.1, y+0.4)
+                        l2 = (x-0.4, y-0.4)
+                        r2 = (x+0.4, y-0.4)
+                        color = [1,0.5,0.3]
+                        self.road_poly.append(( [l1,r1,l2,r2], color ))
+                        l1 = (x+0.5, y-0.4)
+                        r1 = (x-0.5, y-0.4)
+                        l2 = (x-0.5, y-0.6)
+                        r2 = (x+0.5, y-0.6)
+                        color = [1,0.5,0.3]
+                        self.road_poly.append(( [l1,r1,l2,r2], color ))
 
 
         self.track  = np.concatenate(self.tracks)#sum(self.tracks, [])
@@ -399,9 +403,9 @@ class CarRacing(gym.Env, EzPickle):
         # TODO to screenshots read comments below
         self.transform.set_translation(
             # to get nice screenshots use WINDOW_X/2
-            WINDOW_W/2 - (scroll_x*zoom*math.cos(angle) - scroll_y*zoom*math.sin(angle)), 
-            WINDOW_H/4 - (scroll_x*zoom*math.sin(angle) + scroll_y*zoom*math.cos(angle)) )
-        self.transform.set_rotation(angle) # get screenshots commet this out
+            WINDOW_W/2,# - (scroll_x*zoom*math.cos(angle) - scroll_y*zoom*math.sin(angle)), 
+            WINDOW_H/2)#4 - (scroll_x*zoom*math.sin(angle) + scroll_y*zoom*math.cos(angle)) )
+        #self.transform.set_rotation(angle) # get screenshots commet this out
 
         self.car.draw(self.viewer, mode!="state_pixels")
 
@@ -573,6 +577,18 @@ class CarRacing(gym.Env, EzPickle):
             gl.glColor4f(color[0], color[1], color[2], 1)
             for p in poly:
                 gl.glVertex3f(p[0], p[1], 0)
+
+        gl.glColor4f(0, 0, 0, 1)
+        gl.glVertex3f(-PLAYFIELD, 2, 0)
+        gl.glVertex3f(+PLAYFIELD, 2, 0)
+        gl.glVertex3f(+PLAYFIELD,-2, 0)
+        gl.glVertex3f(-PLAYFIELD,-2, 0)
+
+        gl.glVertex3f(+2,-PLAYFIELD, 0)
+        gl.glVertex3f(+2,+PLAYFIELD, 0)
+        gl.glVertex3f(-2,+PLAYFIELD, 0)
+        gl.glVertex3f(-2,-PLAYFIELD, 0)
+        
         gl.glEnd()
 
     def render_road_lines(self):
