@@ -285,6 +285,8 @@ class CarRacing(gym.Env, EzPickle):
         # Create tiles
         for track, border in zip(self.tracks,borders):
             for i in range(len(track)):
+                prob_obstacle = 0.1
+                obstacle = np.random.binomial(1,prob_obstacle)
                 alpha1, beta1, x1, y1 = track[i][1]
                 alpha2, beta2, x2, y2 = track[i][0]
                 road1_l = (x1 - TRACK_WIDTH*math.cos(beta1), y1 - TRACK_WIDTH*math.sin(beta1))
@@ -295,6 +297,7 @@ class CarRacing(gym.Env, EzPickle):
                     shape=polygonShape(vertices=[road1_l, road1_r, road2_r, road2_l])
                     ))
                 t.userData = t
+                t.obstacle = obstacle
                 c = 0.01*(i%3)
                 t.color = [ROAD_COLOR[0], ROAD_COLOR[1], ROAD_COLOR[2]]
                 t.road_visited = False
@@ -302,6 +305,23 @@ class CarRacing(gym.Env, EzPickle):
                 t.fixtures[0].sensor = True
                 self.road_poly.append(( [road1_l, road1_r, road2_r, road2_l], t.color ))
                 self.road.append(t)
+
+                # Adding obstacles
+                if obstacle == 1:
+                    x = (x1+x2)/2
+                    y = (y1+y2)/2 + TRACK_WIDTH*math.sin(beta1)/2
+                    l1 = (x+0.1, y+0.4)
+                    r1 = (x-0.1, y+0.4)
+                    l2 = (x-0.4, y-0.4)
+                    r2 = (x+0.4, y-0.4)
+                    color = [1,0.5,0.3]
+                    self.road_poly.append(( [l1,r1,l2,r2], color ))
+                    l1 = (x+0.5, y-0.4)
+                    r1 = (x-0.5, y-0.4)
+                    l2 = (x-0.5, y-0.6)
+                    r2 = (x+0.5, y-0.6)
+                    color = [1,0.5,0.3]
+                    self.road_poly.append(( [l1,r1,l2,r2], color ))
 
 
         self.track  = np.concatenate(self.tracks)#sum(self.tracks, [])
