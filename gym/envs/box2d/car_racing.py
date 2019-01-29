@@ -577,17 +577,6 @@ class CarRacing(gym.Env, EzPickle):
             for p in poly:
                 gl.glVertex3f(p[0], p[1], 0)
 
-    # TODO delete function
-    def _render_tiles_v2(self):
-        '''
-        Can only be called inside a glBegin
-        '''
-        # Drawing road improved version
-        for poly, color in self.road_poly_alt:
-            gl.glColor4f(color[0], color[1], color[2], 1)
-            for p in poly:
-                gl.glVertex3f(p[0], p[1], 0)
-
     def _render_junctions(self):
         '''
         Can only be called inside a glBegin

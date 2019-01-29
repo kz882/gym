@@ -13,7 +13,6 @@ image
 
 To Improve (by importance)
 ==========
-2. Add more than one line
 2. Detect change of line
 2. Add obstacles
 2. Add road lines
