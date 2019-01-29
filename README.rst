@@ -15,6 +15,7 @@ To Improve (by importance)
 ==========
 1. Change representation of maps (done)
 2. Adapt tracks of world to new model
+3. Error, sometimes one track is False
 2. Add more than one line
 2. Detect change of line
 2. Add obstacles
