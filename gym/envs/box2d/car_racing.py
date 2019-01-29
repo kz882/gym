@@ -53,7 +53,7 @@ PLAYFIELD   = 2000/SCALE # Game over boundary
 FPS         = 50
 ZOOM        = 2.7        # Camera zoom, 0.25 to take screenshots, default 2.7
 ZOOM_FOLLOW = True       # Set to False for fixed view (don't use zoom)
-ZOOM_OUT    = False
+ZOOM_OUT    = True
 SHOW_AXIS   = False
 if ZOOM_OUT: ZOOM = 0.25
 
@@ -354,13 +354,13 @@ class CarRacing(gym.Env, EzPickle):
                 dy2 = math.sin(theta2)
 
                 for lane in range(NUM_TRACKS):
-                    r = 1- ((lane+1)%NUM_TRACKS)
-                    l = 1- ((lane+2)%NUM_TRACKS)
+                    l = 1- ((lane+1)%NUM_TRACKS)
+                    r = 1- ((lane+2)%NUM_TRACKS)
 
-                    road1_l = (x1-dx1*TRACK_WIDTH, y1+dy1*TRACK_WIDTH)
-                    road1_r = (x1+0*dx1*TRACK_WIDTH, y1-dy1*TRACK_WIDTH)
-                    road2_r = (x2+0*dx2*TRACK_WIDTH, y2-dy2*TRACK_WIDTH)
-                    road2_l = (x2-dx2*TRACK_WIDTH, y2+dy2*TRACK_WIDTH)
+                    road1_l = (x1-l*dx1*TRACK_WIDTH, y1+l*dy1*TRACK_WIDTH)
+                    road1_r = (x1+r*dx1*TRACK_WIDTH, y1-r*dy1*TRACK_WIDTH)
+                    road2_r = (x2+r*dx2*TRACK_WIDTH, y2-r*dy2*TRACK_WIDTH)
+                    road2_l = (x2-l*dx2*TRACK_WIDTH, y2+l*dy2*TRACK_WIDTH)
 
                     t = self.world.CreateStaticBody( fixtures = fixtureDef(
                         shape=polygonShape(vertices=[road1_l, road1_r, road2_r, road2_l])
