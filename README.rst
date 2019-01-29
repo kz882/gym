@@ -11,14 +11,15 @@ Improved
 Here some images of some changes:
 image
 
-To Improve
+To Improve (by importance)
 ==========
-* Change representation of maps
-* Add more than one line
-* Detect change of line
-* Add road lines
-* Change car when not racing
-* Add obstacles
+1. Change representation of maps (done)
+2. Adapt tracks of world to new model
+2. Add more than one line
+2. Detect change of line
+2. Add obstacles
+2. Add road lines
+2. Change car when not racing
  
 ---
 

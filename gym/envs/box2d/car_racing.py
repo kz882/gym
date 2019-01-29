@@ -56,6 +56,7 @@ FPS         = 50
 ZOOM        = 2.7        # Camera zoom, 0.25 to take screenshots, default 2.7
 ZOOM_FOLLOW = True       # Set to False for fixed view (don't use zoom)
 ZOOM_OUT    = False
+SHOW_AXIS   = False
 if ZOOM_OUT: ZOOM = 0.25
 
 TRACK_DETAIL_STEP = 21/SCALE
@@ -66,6 +67,8 @@ BORDER_MIN_COUNT = 4
 
 NUM_TRACKS = 1
 ROAD_COLOR = [0.4, 0.4, 0.4]
+
+USE_TRACK_STRUCTURE_V2 = True
 
 class FrictionDetector(contactListener):
     def __init__(self, env):
@@ -352,10 +355,10 @@ class CarRacing(gym.Env, EzPickle):
 
                 #set_trace()
                 color = [ROAD_COLOR[0], ROAD_COLOR[1], ROAD_COLOR[2], 1]
-                road1_l = (x1-dx1*TRACK_WIDTH/2, y1+dy1*TRACK_WIDTH/2, 0)
-                road1_r = (x1+dx1*TRACK_WIDTH/2, y1-dy1*TRACK_WIDTH/2, 0)
-                road2_r = (x2+dx2*TRACK_WIDTH/2, y2-dy2*TRACK_WIDTH/2, 0)
-                road2_l = (x2-dx2*TRACK_WIDTH/2, y2+dy2*TRACK_WIDTH/2, 0)
+                road1_l = (x1-dx1*TRACK_WIDTH, y1+dy1*TRACK_WIDTH, 0)
+                road1_r = (x1+dx1*TRACK_WIDTH, y1-dy1*TRACK_WIDTH, 0)
+                road2_r = (x2+dx2*TRACK_WIDTH, y2-dy2*TRACK_WIDTH, 0)
+                road2_l = (x2-dx2*TRACK_WIDTH, y2+dy2*TRACK_WIDTH, 0)
                 self.road_poly_alt.append(( [road1_l, road1_r, road2_r, road2_l], color ))
 
 
@@ -590,6 +593,37 @@ class CarRacing(gym.Env, EzPickle):
         self.tracks[0] = track1
         self.tracks[1] = track2
 
+    def _render_tiles_v1(self):
+        '''
+        Can only be called inside a glBegin
+        '''
+        # drawing road old way
+        for poly, color in self.road_poly:
+            gl.glColor4f(color[0], color[1], color[2], 1)
+            for p in poly:
+                gl.glVertex3f(p[0], p[1], 0)
+
+    def _render_tiles_v2(self):
+        '''
+        Can only be called inside a glBegin
+        '''
+        # Drawing road improved version
+        for poly, color in self.road_poly_alt:
+            gl.glColor4f(color[0], color[1], color[2], 1)
+            for p in poly:
+                gl.glVertex3f(p[0], p[1], 0)
+
+    def _render_junctions(self):
+        '''
+        Can only be called inside a glBegin
+        '''
+        # drawing junctions (NOT WORKING)
+        for poly, color in self.road_poly_junctions:
+            gl.glColor4f(color[0], color[1], color[2], 1)
+            for p in poly:
+                gl.glVertex3f(p[0], p[1], 0)
+        
+
     def render_road(self):
         gl.glBegin(gl.GL_QUADS)
         gl.glColor4f(0.4, 0.8, 0.4, 1.0)
@@ -605,16 +639,16 @@ class CarRacing(gym.Env, EzPickle):
                 gl.glVertex3f(k*x + 0, k*y + 0, 0)
                 gl.glVertex3f(k*x + 0, k*y + k, 0)
                 gl.glVertex3f(k*x + k, k*y + k, 0)
-        for poly, color in self.road_poly:
-            gl.glColor4f(color[0], color[1], color[2], 1)
-            for p in poly:
-                gl.glVertex3f(p[0], p[1], 0)
 
-        for poly, color in self.road_poly_junctions:
-            gl.glColor4f(color[0], color[1], color[2], 1)
-            for p in poly:
-                gl.glVertex3f(p[0], p[1], 0)
-        
+        if USE_TRACK_STRUCTURE_V2:
+            self._render_tiles_v2()
+        else:
+            self._render_tiles_v1()
+
+        #self._render_junctions()
+
+        # drawing angles of old config, the 
+        # black line is the angle (NOT WORKING)
         for track in []:#self.tracks:
             for point1, point2 in track:
                 alpha1,beta1,x1,y1 = point1
@@ -627,23 +661,20 @@ class CarRacing(gym.Env, EzPickle):
                 gl.glVertex3f(x1-2+math.cos(beta1)*2,y1+math.sin(beta1)*2, 0)
                 gl.glVertex3f(x1-2,y1, 0)
 
-        for poly, color in self.road_poly_alt:
-            gl.glColor4f(color[0], color[1], color[2], 1)
-            for p in poly:
-                gl.glVertex3f(p[0], p[1], 0)
-
-
         # Ploting axis
-        gl.glColor4f(0, 0, 0, 1)
-        gl.glVertex3f(-PLAYFIELD, 2, 0)
-        gl.glVertex3f(+PLAYFIELD, 2, 0)
-        gl.glVertex3f(+PLAYFIELD,-2, 0)
-        gl.glVertex3f(-PLAYFIELD,-2, 0)
-
-        gl.glVertex3f(+2,-PLAYFIELD, 0)
-        gl.glVertex3f(+2,+PLAYFIELD, 0)
-        gl.glVertex3f(-2,+PLAYFIELD, 0)
-        gl.glVertex3f(-2,-PLAYFIELD, 0)
+        if SHOW_AXIS:
+            # x-axis
+            gl.glColor4f(0, 0, 0, 1)
+            gl.glVertex3f(-PLAYFIELD, 2, 0)
+            gl.glVertex3f(+PLAYFIELD, 2, 0)
+            gl.glVertex3f(+PLAYFIELD,-2, 0)
+            gl.glVertex3f(-PLAYFIELD,-2, 0)
+            
+            # y-axis
+            gl.glVertex3f(+2,-PLAYFIELD, 0)
+            gl.glVertex3f(+2,+PLAYFIELD, 0)
+            gl.glVertex3f(-2,+PLAYFIELD, 0)
+            gl.glVertex3f(-2,-PLAYFIELD, 0)
         
         gl.glEnd()
 
