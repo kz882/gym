@@ -53,7 +53,7 @@ PLAYFIELD   = 2000/SCALE # Game over boundary
 FPS         = 50
 ZOOM        = 2.7        # Camera zoom, 0.25 to take screenshots, default 2.7
 ZOOM_FOLLOW = True       # Set to False for fixed view (don't use zoom)
-ZOOM_OUT    = True
+ZOOM_OUT    = 0
 SHOW_AXIS   = False
 if ZOOM_OUT: ZOOM = 0.25
 
@@ -238,25 +238,22 @@ class CarRacing(gym.Env, EzPickle):
             return False
 
         # x,y,theta
-        track_alt = [[track[i][2],track[i][3],math.atan2(track[i][3]-track[i-1][3], track[i][2]-track[i-1][2])] for i in range(len(track))]
-        track_alt = [[track_alt[i-1],track_alt[i]] for i in range(len(track_alt))]
+        #track_alt = [[track[i][2],track[i][3],math.atan2(track[i][3]-track[i-1][3], track[i][2]-track[i-1][2])] for i in range(len(track))]
+        #track_alt = [[track_alt[i-1],track_alt[i]] for i in range(len(track_alt))]
 
         track     = [[track[i-1],track[i]] for i in range(len(track))]
-        return track,track_alt
+        return track
 
     def _create_track(self):
 
         track_num  = 2
         tracks     = []
-        tracks_alt = []
         for _ in range(track_num):
-            track,track_alt = self._get_track(12)
+            track = self._get_track(12)
             if not track: return track
             tracks.append(track)
-            tracks_alt.append(track_alt)
 
         self.tracks = tracks
-        self.tracks_alt = tracks_alt
         self._remove_roads()
 
         # Red-white border on hard turns
@@ -293,7 +290,7 @@ class CarRacing(gym.Env, EzPickle):
 
 
         # Create tiles
-        for track, border in []:#zip(self.tracks,borders):
+        for track, border in zip(self.tracks,borders):
             for i in range(len(track)):
                 prob_obstacle = 0.1
                 obstacle = np.random.binomial(1,prob_obstacle)
@@ -304,10 +301,10 @@ class CarRacing(gym.Env, EzPickle):
                     r = 1- ((lane+1)%NUM_TRACKS)
                     l = 1- ((lane+2)%NUM_TRACKS)
 
-                    road1_l = (x1 - l*TRACK_WIDTH*math.cos(beta1)/2, y1 - TRACK_WIDTH*math.sin(beta1)/2)
-                    road1_r = (x1 + r*TRACK_WIDTH*math.cos(beta1)/2, y1 + TRACK_WIDTH*math.sin(beta1)/2)
-                    road2_l = (x2 - l*TRACK_WIDTH*math.cos(beta2)/2, y2 - TRACK_WIDTH*math.sin(beta2)/2)
-                    road2_r = (x2 + r*TRACK_WIDTH*math.cos(beta2)/2, y2 + TRACK_WIDTH*math.sin(beta2)/2)
+                    road1_l = (x1 - l*TRACK_WIDTH*math.cos(beta1), y1 - l*TRACK_WIDTH*math.sin(beta1))
+                    road1_r = (x1 + r*TRACK_WIDTH*math.cos(beta1), y1 + r*TRACK_WIDTH*math.sin(beta1))
+                    road2_l = (x2 - l*TRACK_WIDTH*math.cos(beta2), y2 - l*TRACK_WIDTH*math.sin(beta2))
+                    road2_r = (x2 + r*TRACK_WIDTH*math.cos(beta2), y2 + r*TRACK_WIDTH*math.sin(beta2))
 
                     t = self.world.CreateStaticBody( fixtures = fixtureDef(
                         shape=polygonShape(vertices=[road1_l, road1_r, road2_r, road2_l])
@@ -315,7 +312,7 @@ class CarRacing(gym.Env, EzPickle):
                     t.userData = t
                     t.obstacle = obstacle
                     c = 0.01*(i%3)
-                    t.color = [ROAD_COLOR[0]+20*lane, ROAD_COLOR[1], ROAD_COLOR[2]]
+                    t.color = [ROAD_COLOR[0], ROAD_COLOR[1], ROAD_COLOR[2]]
                     t.road_visited = False
                     t.road_friction = 1.0
                     t.fixtures[0].sensor = True
@@ -339,43 +336,6 @@ class CarRacing(gym.Env, EzPickle):
                         color = [1,0.5,0.3]
                         self.road_poly.append(( [l1,r1,l2,r2], color ))
 
-        for track in self.tracks_alt:
-            for point1, point2 in track:
-                prob_obstacle = 0.1
-                obstacle = np.random.binomial(1,prob_obstacle)
-                x1,y1,theta1 = point1
-                x2,y2,theta2 = point2
-
-                theta1 = math.pi/2 - theta1
-                theta2 = math.pi/2 - theta2
-                dx1 = math.cos(theta1)
-                dy1 = math.sin(theta1)
-                dx2 = math.cos(theta2)
-                dy2 = math.sin(theta2)
-
-                for lane in range(NUM_TRACKS):
-                    l = 1- ((lane+1)%NUM_TRACKS)
-                    r = 1- ((lane+2)%NUM_TRACKS)
-
-                    road1_l = (x1-l*dx1*TRACK_WIDTH, y1+l*dy1*TRACK_WIDTH)
-                    road1_r = (x1+r*dx1*TRACK_WIDTH, y1-r*dy1*TRACK_WIDTH)
-                    road2_r = (x2+r*dx2*TRACK_WIDTH, y2-r*dy2*TRACK_WIDTH)
-                    road2_l = (x2-l*dx2*TRACK_WIDTH, y2+l*dy2*TRACK_WIDTH)
-
-                    t = self.world.CreateStaticBody( fixtures = fixtureDef(
-                        shape=polygonShape(vertices=[road1_l, road1_r, road2_r, road2_l])
-                        ))
-                    t.userData = t
-                    t.obstacle = obstacle
-                    c = 0.01*(i%3)
-                    t.color = [ROAD_COLOR[0]+20*lane, ROAD_COLOR[1], ROAD_COLOR[2]]
-                    t.road_visited = False
-                    t.road_friction = 1.0
-                    t.fixtures[0].sensor = True
-                    self.road.append(t)
-                    self.road_poly_alt.append(( [road1_l, road1_r, road2_r, road2_l], t.color ))
-
-
         self.track  = np.concatenate(self.tracks)#sum(self.tracks, [])
         return True
 
@@ -386,7 +346,6 @@ class CarRacing(gym.Env, EzPickle):
         self.tile_visited_count = 0
         self.t = 0.0
         self.road_poly = []
-        self.road_poly_alt = []
         self.road_poly_junctions = []
         self.human_render = False
 
@@ -537,8 +496,6 @@ class CarRacing(gym.Env, EzPickle):
 
         track1 = np.array(self.tracks[0])
         track2 = np.array(self.tracks[1])
-        track1_alt = np.array(self.tracks_alt[0])
-        track2_alt = np.array(self.tracks_alt[1])
 
         points1 = track1[:,:,[2,3]]
         points2 = track2[:,:,[2,3]]
@@ -586,7 +543,6 @@ class CarRacing(gym.Env, EzPickle):
                             to_be_deleted = np.concatenate((to_be_deleted, track2[idx]))
 
                         track2     = track2[idx == False]
-                        track2_alt = track2_alt[idx == False]
 
                     # Create gray tile to smoth track
                     # Add connection tile only for first and last tile of section
@@ -609,11 +565,9 @@ class CarRacing(gym.Env, EzPickle):
         
         self.tracks[0] = track1
         self.tracks[1] = track2
-        self.tracks_alt[0] = track1_alt
-        self.tracks_alt[1] = track2_alt
 
 
-    def _render_tiles_v1(self):
+    def _render_tiles(self):
         '''
         Can only be called inside a glBegin
         '''
@@ -623,6 +577,7 @@ class CarRacing(gym.Env, EzPickle):
             for p in poly:
                 gl.glVertex3f(p[0], p[1], 0)
 
+    # TODO delete function
     def _render_tiles_v2(self):
         '''
         Can only be called inside a glBegin
@@ -660,10 +615,7 @@ class CarRacing(gym.Env, EzPickle):
                 gl.glVertex3f(k*x + 0, k*y + k, 0)
                 gl.glVertex3f(k*x + k, k*y + k, 0)
 
-        if USE_TRACK_STRUCTURE_V2:
-            self._render_tiles_v2()
-        else:
-            self._render_tiles_v1()
+        self._render_tiles()
 
         #self._render_junctions()
 
