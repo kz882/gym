@@ -13,10 +13,20 @@ image
 
 To Improve (by importance)
 ==========
-2. Detect change of line
-2. Add obstacles
-2. Add road lines
-2. Change car when not racing
+
+#. Spawn function
+#. How to represent track and lanes
+#. Get Same tile in other lane
+#. Get tile with certain conditions
+  #. with certain angle (e.g. >40º)
+  #. In an T-junction
+  #. in an X-junction
+  #. With obstacle in front
+#. Get outside position
+#. Detect change of line
+#. Add obstacles
+#. Add road lines
+#. Change car when not racing
  
 ---
 
