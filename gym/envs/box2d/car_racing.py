@@ -339,7 +339,12 @@ class CarRacing(gym.Env, EzPickle):
         self.track  = np.concatenate(self.tracks)#sum(self.tracks, [])
         return True
 
-    def reset(self):
+    def reset(self, car_position=[None,None,None]):
+        '''
+        car_position [angle float, x float, y float]
+                     Position of the car
+                     Default: first tile of principal track
+        '''
         self._destroy()
         self.reward = 0.0
         self.prev_reward = 0.0
@@ -353,7 +358,9 @@ class CarRacing(gym.Env, EzPickle):
             success = self._create_track()
             if success: break
             print("retry to generate track (normal if there are not many of this messages)")
-        self.car = Car(self.world, *self.track[0][1][1:4])
+        if car_position[0] == None or car_position[1] == None or car_Position[2] == None:
+            car_position = self.track[0][1][1:4]
+        self.car = Car(self.world, *car_position)
 
         return self.step(None)[0]
 
@@ -695,6 +702,14 @@ class CarRacing(gym.Env, EzPickle):
         gl.glEnd()
         self.score_label.text = "%04i" % self.reward
         self.score_label.draw()
+
+    def get_rnd_point_in_track(self):
+        '''
+        returns a random point in the track with the angle equal 
+        to the tile of the track
+        '''
+        idx = self.np_random.randint(0, len(self.track))
+        return self.track[idx,1,1:]
 
 
 if __name__=="__main__":
