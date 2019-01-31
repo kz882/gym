@@ -42,3 +42,15 @@ class TimeLimit(Wrapper):
         self._episode_started_at = time.time()
         self._elapsed_steps = 0
         return self.env.reset()
+
+    def place_agent(self,pos):
+        if self.unwrapped.spec.id.lower() == "carracing-v0":
+            return self.env.place_agent(pos)
+        else:
+            return NotImplementedError
+
+    def get_rnd_point_in_track(self):
+        if self.unwrapped.spec.id.lower() == "carracing-v0":
+            return self.env.get_rnd_point_in_track()
+        else:
+            return NotImplementedError

@@ -137,6 +137,10 @@ class CarRacing(gym.Env, EzPickle):
         self.road = []
         self.car.destroy()
 
+    def place_agent(self, position):
+        self.car.destroy()
+        self.car = Car(self.world, *position)
+
     def _get_track(self, CHECKPOINTS, TRACK_RAD=900/SCALE):
 
         CHECKPOINTS = 12
@@ -339,7 +343,7 @@ class CarRacing(gym.Env, EzPickle):
         self.track  = np.concatenate(self.tracks)#sum(self.tracks, [])
         return True
 
-    def reset(self, car_position=[None,None,None]):
+    def reset(self):
         '''
         car_position [angle float, x float, y float]
                      Position of the car
@@ -352,15 +356,18 @@ class CarRacing(gym.Env, EzPickle):
         self.t = 0.0
         self.road_poly = []
         self.road_poly_junctions = []
+        self.track = []
+        self.tracks = []
         self.human_render = False
 
         while True:
             success = self._create_track()
             if success: break
             print("retry to generate track (normal if there are not many of this messages)")
-        if car_position[0] == None or car_position[1] == None or car_Position[2] == None:
-            car_position = self.track[0][1][1:4]
+        #if car_position is None or car_position[0] == None or car_position[1] == None or car_position[2] == None:
+        car_position = self.track[0][1][1:4]
         self.car = Car(self.world, *car_position)
+        self.place_agent(self.get_rnd_point_in_track())
 
         return self.step(None)[0]
 
@@ -709,6 +716,7 @@ class CarRacing(gym.Env, EzPickle):
         to the tile of the track
         '''
         idx = self.np_random.randint(0, len(self.track))
+        print(idx)
         return self.track[idx,1,1:]
 
 
