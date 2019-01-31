@@ -112,7 +112,6 @@ class Car:
         for w in self.wheels[2:4]:
             diff = gas - w.gas
             if diff > 0.1: diff = 0.1  # gradually increase, but stop immediately
-            print(w.gas)
             w.gas += diff
 
     def brake(self, b):

@@ -53,7 +53,7 @@ PLAYFIELD   = 2000/SCALE # Game over boundary
 FPS         = 50
 ZOOM        = 2.7        # Camera zoom, 0.25 to take screenshots, default 2.7
 ZOOM_FOLLOW = True       # Set to False for fixed view (don't use zoom)
-ZOOM_OUT    = 0
+ZOOM_OUT    = 1
 SHOW_AXIS   = False
 if ZOOM_OUT: ZOOM = 0.25
 
@@ -109,6 +109,15 @@ class CarRacing(gym.Env, EzPickle):
         'render.modes': ['human', 'rgb_array', 'state_pixels'],
         'video.frames_per_second' : FPS
     }
+
+    def set_velocity(self, velocity=[0.0,0.0]):
+        self.car.hull.linearVelocity.Set(velocity[0],velocity[1])
+
+    def set_speed(self, speed):
+        ang = self.car.hull.angle + math.pi/2
+        velocity_x = math.cos(ang)*speed
+        velocity_y = math.sin(ang)*speed
+        self.set_velocity([velocity_x, velocity_y])
 
     def __init__(self):
         EzPickle.__init__(self)
@@ -716,7 +725,6 @@ class CarRacing(gym.Env, EzPickle):
         to the tile of the track
         '''
         idx = self.np_random.randint(0, len(self.track))
-        print(idx)
         return self.track[idx,1,1:]
 
 
