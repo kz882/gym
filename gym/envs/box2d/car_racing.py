@@ -349,7 +349,7 @@ class CarRacing(gym.Env, EzPickle):
                         color = [1,0.5,0.3]
                         self.road_poly.append(( [l1,r1,l2,r2], color ))
 
-        self.track  = np.concatenate(self.tracks)#sum(self.tracks, [])
+        self.track  = np.concatenate(self.tracks)
         return True
 
     def reset(self):
@@ -538,7 +538,7 @@ class CarRacing(gym.Env, EzPickle):
         # > > get min distance
         # > get max of distances
         # if max dist < threshold remove
-        to_be_deleted = None
+        removed_idx = set()
         for i in range(intersections.shape[0]):
             _, first = intersections[i-1]
             last,_ = intersections[i]
@@ -555,36 +555,14 @@ class CarRacing(gym.Env, EzPickle):
                 if max_min_d < THRESHOLD*2: remove = True
                 
                 # Removing tiles
-                removed_idx = []
                 if remove:
                     for point in sec2:
                         idx = np.all(track2[:,:,[2,3]] == point, axis=(1,2))
-                        removed_idx.append(np.where(idx)[0])
-                        if to_be_deleted is None: 
-                            to_be_deleted = track2[idx]
-                        else:
-                            to_be_deleted = np.concatenate((to_be_deleted, track2[idx]))
+                        removed_idx.update(np.where(idx)[0])
 
-                        track2     = track2[idx == False]
+        track2 = np.delete(track2, list(removed_idx), axis=0) # efficient way to delete them from np.array
 
-                    # Create gray tile to smoth track
-                    # Add connection tile only for first and last tile of section
-                    #set_trace()
-                    removed_idx = np.concatenate(removed_idx)
-                    if removed_idx.shape[0] > 0:
-                        #set_trace()
-                        min_idx = removed_idx.min()
-                        if min_idx >= track2.shape[0]:
-                            min_idx = track2.shape[0]-1
-                        for i in [-1,0]:
-                            # Goal: Find closest tile in positive angle (0-pi)
-
-                            tile = track2[min_idx+i,:,:]
-                            if i == -1: tile[::-1,:]
-                            # DONT KNWO WHAT TO DO HERE
-        self.to_be_deleted = to_be_deleted
         self.intersections = intersections
-
         
         self.tracks[0] = track1
         self.tracks[1] = track2
@@ -665,16 +643,6 @@ class CarRacing(gym.Env, EzPickle):
     def render_road_lines(self):
         
         print_intersections = False
-
-        if self.to_be_deleted is not None and print_intersections:
-            for x,y in self.to_be_deleted[:,1,[2,3]]:
-                gl.glBegin(gl.GL_QUADS)
-                gl.glColor4f(0, 0, 0, 1)
-                gl.glVertex3f(x+3,y+3,0)
-                gl.glVertex3f(x-3,y+3,0)
-                gl.glVertex3f(x-3,y-3,0)
-                gl.glVertex3f(x+3,y-3,0)
-                gl.glEnd()
 
         if self.intersections is not None and print_intersections:
             for x,y in self.intersections[:,1]:
