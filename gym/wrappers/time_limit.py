@@ -54,3 +54,15 @@ class TimeLimit(Wrapper):
             return self.env.get_rnd_point_in_track()
         else:
             return NotImplementedError
+
+    def set_velocity(self, velocity):
+        if self.unwrapped.spec.id.lower() == "carracing-v0":
+            return self.env.set_velocity(velocity)
+        else:
+            return NotImplementedError
+
+    def set_speed(self, speed):
+        if self.unwrapped.spec.id.lower() == "carracing-v0":
+            return self.env.set_speed(speed)
+        else:
+            return NotImplementedError

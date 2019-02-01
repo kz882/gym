@@ -29,7 +29,6 @@ Here some images of some changes:
 To Improve (by importance)
 ==========
 
-#. Spawn function
 #. How to represent track and lanes
 #. Get Same tile in other lane
 #. Get tile with certain conditions
