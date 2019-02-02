@@ -1,6 +1,7 @@
 import sys, math
 import numpy as np
 from pdb import set_trace
+from copy import copy
 
 import Box2D
 from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape, revoluteJointDef, contactListener)
@@ -53,9 +54,6 @@ PLAYFIELD   = 2000/SCALE # Game over boundary
 FPS         = 50
 ZOOM        = 2.7        # Camera zoom, 0.25 to take screenshots, default 2.7
 ZOOM_FOLLOW = True       # Set to False for fixed view (don't use zoom)
-ZOOM_OUT    = 1
-SHOW_AXIS   = False
-if ZOOM_OUT: ZOOM = 0.25
 
 TRACK_DETAIL_STEP = 21/SCALE
 TRACK_TURN_RATE = 0.31
@@ -63,10 +61,14 @@ TRACK_WIDTH = 40/SCALE
 BORDER = 8/SCALE
 BORDER_MIN_COUNT = 4
 
-NUM_TRACKS = 2
 ROAD_COLOR = [0.4, 0.4, 0.4]
 
-USE_TRACK_STRUCTURE_V2 = True
+# Debug actions
+SHOW_ENDS_OF_TRACKS       = False   # Shows with red dots the end of track
+SHOW_INTERSECTIONS_POINTS = False   # Shows with green dots the intersections of main track
+SHOW_AXIS                 = False   # Draws two lines where the x and y axis are
+ZOOM_OUT                  = 1       # Shows maps in general and does not do zoom
+if ZOOM_OUT: ZOOM         = 0.25    # Complementary to ZOOM_OUT
 
 class FrictionDetector(contactListener):
     def __init__(self, env):
@@ -132,8 +134,34 @@ class CarRacing(gym.Env, EzPickle):
         self.reward = 0.0
         self.prev_reward = 0.0
 
+        # Config
+        self.num_lanes_changes = 3   # Number of points where lanes change from 1 lane to two and viceversa 
+        self.num_tracks        = 2   # Number of tracks, this control the complexity of the map
+        self.num_lanes         = 2   # Number of lanes, 1 or 2
+        self.prob_obstacle     = 0.1 # Percentage of finding a obstacle in a point of the row
+
         self.action_space = spaces.Box( np.array([-1,0,0]), np.array([+1,+1,+1]), dtype=np.float32)  # steer, gas, brake
         self.observation_space = spaces.Box(low=0, high=255, shape=(STATE_H, STATE_W, 3), dtype=np.uint8)
+
+    def set_config(self, num_tracks=2, num_lanes=2, num_lanes_changes=2, prob_obstacle=0.1):
+        '''
+        Controls some attributes of the game, such as the number of tracks (num_tracks)
+        which is a proxy to control the complexity of map, the number of lanes (num_lanes_changes) and
+        the probability of finding an obstacle (prob_osbtacle).
+        Only call this method onceto set the parameters
+
+        num_tracks:       (int 2)    Number of tracks, in {1,2}, 1: simple, 2: complex
+        num_lanes:        (int 2)    Number of lanes in track, > 0 ({1,2})
+        num_lanes_changes (int 2)    Number of changes from 2 to 1 or viceversa, this 
+                                     is ultimately transform as a probability over the
+                                     total number of points in track
+        prob_obstacle     (foat 0.1) The probability of finding an obstacle a point of 
+                                     the track, [0,1]
+        '''
+        self.num_lanes         = num_lanes  if num_lanes  > 0 and num_lanes  <= 2 else self.num_lanes
+        self.num_tracks        = num_tracks if num_tracks > 0 and num_tracks <= 2 else self.num_tracks
+        self.prob_obstacle     = prob_obstacle if prob_obstacle >= 0 and prob_obstacle <= 1 else self.prob_obstacle
+        self.num_lanes_changes = num_lanes_changes if num_lanes_changes >= 0 else self.num_lanes_changes
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -269,6 +297,11 @@ class CarRacing(gym.Env, EzPickle):
             ('intersection','bool'),
             ('lanes',np.ndarray),
             ('obstacles',np.ndarray)])
+
+        #info['lanes'] = copy([[True]*self.num_lanes])*len(info)
+        for i in range(len(info)):
+            info[i]['lanes'] = [True, True]
+
         for i in range(1, len(self.tracks)): 
             track = self.tracks[i]
             info[len(self.tracks[i-1])-1:len(self.tracks[i-1])+len(track)]['track'] = i
@@ -288,12 +321,30 @@ class CarRacing(gym.Env, EzPickle):
         info['intersection'][list(intersections_idx)] = True
 
         self.info = info
+
+    def _set_lanes(self):
+        if self.num_lanes_changes > 0 and self.num_lanes > 1:
+            rm_lane = 0 # 1 remove lane, 0 keep lane
+            lane    = 0 # Which lane will be removed
+            changes = self.np_random.randint(0,len(self.track),self.num_lanes_changes)
+            for i, point in enumerate(self.track):
+                change = True if i in changes else False
+                rm_lane = (rm_lane+change)%2
+
+                if change and rm_lane == 1: # if it is time to change and the turn is to remove lane
+                    lane = np.random.randint(0,2,1)[0]
+
+                if rm_lane:
+                    self.info[i]['lanes'][lane] = False
+
+                # Change if end/inter of or if change prob
+                if self.info[i]['end']: 
+                    rm_lane = 0
         
     def _create_track(self):
 
-        track_num  = 2
-        tracks     = []
-        for _ in range(track_num):
+        tracks = []
+        for _ in range(self.num_tracks):
             track = self._get_track(12)
             if not track: return track
             tracks.append(track)
@@ -304,6 +355,7 @@ class CarRacing(gym.Env, EzPickle):
         self.track  = np.concatenate(self.tracks)
 
         self._create_info()
+        self._set_lanes()
     
         # Red-white border on hard turns
         borders = []
@@ -325,30 +377,40 @@ class CarRacing(gym.Env, EzPickle):
             borders.append(border)
                 
         # Creating borders for printing
-        for track, border in zip(self.tracks,borders):
+        pos = 0
+        for j in range(self.num_tracks):
+            track  = self.tracks[j]
+            border = borders[j]
             for i in range(len(track)):
                 alpha1, beta1, x1, y1 = track[i][1]
                 alpha2, beta2, x2, y2 = track[i][0]
                 if border[i]:
                     side = np.sign(beta2 - beta1)
-                    b1_l = (x1 + side* TRACK_WIDTH        *math.cos(beta1), y1 + side* TRACK_WIDTH        *math.sin(beta1))
-                    b1_r = (x1 + side*(TRACK_WIDTH+BORDER)*math.cos(beta1), y1 + side*(TRACK_WIDTH+BORDER)*math.sin(beta1))
-                    b2_l = (x2 + side* TRACK_WIDTH        *math.cos(beta2), y2 + side* TRACK_WIDTH        *math.sin(beta2))
-                    b2_r = (x2 + side*(TRACK_WIDTH+BORDER)*math.cos(beta2), y2 + side*(TRACK_WIDTH+BORDER)*math.sin(beta2))
+
+                    c = 1
+
+                    if self.num_lanes > 1:
+                        if side == -1 and self.info[pos]['lanes'][0] == False: c = 0
+                        if side == +1 and self.info[pos]['lanes'][1] == False: c = 0
+
+                    b1_l = (x1 + side* TRACK_WIDTH*c        *math.cos(beta1), y1 + side* TRACK_WIDTH*c        *math.sin(beta1))
+                    b1_r = (x1 + side*(TRACK_WIDTH*c+BORDER)*math.cos(beta1), y1 + side*(TRACK_WIDTH*c+BORDER)*math.sin(beta1))
+                    b2_l = (x2 + side* TRACK_WIDTH*c        *math.cos(beta2), y2 + side* TRACK_WIDTH*c        *math.sin(beta2))
+                    b2_r = (x2 + side*(TRACK_WIDTH*c+BORDER)*math.cos(beta2), y2 + side*(TRACK_WIDTH*c+BORDER)*math.sin(beta2))
                     self.road_poly.append(( [b1_l, b1_r, b2_r, b2_l], (1,1,1) if i%2==0 else (1,0,0) ))
+                pos += 1
 
 
         # Create tiles
-        for track, border in zip(self.tracks,borders):
-            for i in range(len(track)):
-                prob_obstacle = 0.1
-                obstacle = np.random.binomial(1,prob_obstacle)
-                alpha1, beta1, x1, y1 = track[i][1]
-                alpha2, beta2, x2, y2 = track[i][0]
+        for j in range(len(self.track)):
+            obstacle = np.random.binomial(1,self.prob_obstacle)
+            alpha1, beta1, x1, y1 = self.track[j][1]
+            alpha2, beta2, x2, y2 = self.track[j][0]
 
-                for lane in range(NUM_TRACKS):
-                    r = 1- ((lane+1)%NUM_TRACKS)
-                    l = 1- ((lane+2)%NUM_TRACKS)
+            for lane in range(self.num_lanes):
+                if self.info[j]['lanes'][lane]:
+                    r = 1- ((lane+1)%self.num_lanes)
+                    l = 1- ((lane+2)%self.num_lanes)
 
                     road1_l = (x1 - l*TRACK_WIDTH*math.cos(beta1), y1 - l*TRACK_WIDTH*math.sin(beta1))
                     road1_r = (x1 + r*TRACK_WIDTH*math.cos(beta1), y1 + r*TRACK_WIDTH*math.sin(beta1))
@@ -533,74 +595,75 @@ class CarRacing(gym.Env, EzPickle):
 
     def _remove_roads(self):
 
-        def _get_section(first,last,track):
-            sec = []
-            pos = 0
-            found = False
-            while 1:
-                point = track[pos%track.shape[0],:,2:]
-                if np.linalg.norm(point[1]-first) <= TRACK_WIDTH/2:
-                    found = True
-                if found:
-                    sec.append(point)
-                    if np.linalg.norm(point[1]-last) <= TRACK_WIDTH/2:
-                        break
-                pos = pos+1
-                if pos / track.shape[0] >= 2: break
-            if sec == []: return False
-            return np.array(sec)
+        if self.num_tracks > 1:
+            def _get_section(first,last,track):
+                sec = []
+                pos = 0
+                found = False
+                while 1:
+                    point = track[pos%track.shape[0],:,2:]
+                    if np.linalg.norm(point[1]-first) <= TRACK_WIDTH/2:
+                        found = True
+                    if found:
+                        sec.append(point)
+                        if np.linalg.norm(point[1]-last) <= TRACK_WIDTH/2:
+                            break
+                    pos = pos+1
+                    if pos / track.shape[0] >= 2: break
+                if sec == []: return False
+                return np.array(sec)
 
-        THRESHOLD = TRACK_WIDTH*2
+            THRESHOLD = TRACK_WIDTH*2
 
-        track1 = np.array(self.tracks[0])
-        track2 = np.array(self.tracks[1])
+            track1 = np.array(self.tracks[0])
+            track2 = np.array(self.tracks[1])
 
-        points1 = track1[:,:,[2,3]]
-        points2 = track2[:,:,[2,3]]
+            points1 = track1[:,:,[2,3]]
+            points2 = track2[:,:,[2,3]]
 
-        #inter1 = np.array([x for x in points2 if (np.linalg.norm(points1[:,1,:]-x[1:], axis=1) <= TRACK_WIDTH*1.25).sum() >= 1]) TODO delete
-        inter2 = np.array([x for x in points2 if (np.linalg.norm(points1[:,1,:]-x[1:], axis=1) <= TRACK_WIDTH/3.5 ).sum() >= 1])
+            #inter1 = np.array([x for x in points2 if (np.linalg.norm(points1[:,1,:]-x[1:], axis=1) <= TRACK_WIDTH*1.25).sum() >= 1]) TODO delete
+            inter2 = np.array([x for x in points2 if (np.linalg.norm(points1[:,1,:]-x[1:], axis=1) <= TRACK_WIDTH/3.5 ).sum() >= 1])
 
-        intersections = []
-        for i in range(inter2.shape[0]):
-            if np.array_equal(inter2[i-1,1,:],inter2[i,0,:]) == False or np.array_equal(inter2[i,1,:], inter2[((i+1)%len(inter2)),0,:]) == False:
-                intersections.append(inter2[i])
-        intersections = np.array(intersections)
+            intersections = []
+            for i in range(inter2.shape[0]):
+                if np.array_equal(inter2[i-1,1,:],inter2[i,0,:]) == False or np.array_equal(inter2[i,1,:], inter2[((i+1)%len(inter2)),0,:]) == False:
+                    intersections.append(inter2[i])
+            intersections = np.array(intersections)
 
-        # For each point in intersection
-        # > get section of both roads
-        # > For each point in section in second road
-        # > > get min distance
-        # > get max of distances
-        # if max dist < threshold remove
-        removed_idx = set()
-        for i in range(intersections.shape[0]):
-            _, first = intersections[i-1]
-            last,_ = intersections[i]
+            # For each point in intersection
+            # > get section of both roads
+            # > For each point in section in second road
+            # > > get min distance
+            # > get max of distances
+            # if max dist < threshold remove
+            removed_idx = set()
+            for i in range(intersections.shape[0]):
+                _, first = intersections[i-1]
+                last,_ = intersections[i]
 
-            sec1 = _get_section(first,last,track1)
-            sec2 = _get_section(first,last,track2)
-            
-            if sec1 is not False and sec2 is not False:
-                max_min_d = 0
-                remove = False
-                for point in sec1[:,1]:
-                    dist = np.linalg.norm(sec2[:,1] - point, axis=1).min()
-                    max_min_d = dist if max_min_d < dist else max_min_d
-                if max_min_d < THRESHOLD*2: remove = True
+                sec1 = _get_section(first,last,track1)
+                sec2 = _get_section(first,last,track2)
                 
-                # Removing tiles
-                if remove:
-                    for point in sec2:
-                        idx = np.all(track2[:,:,[2,3]] == point, axis=(1,2))
-                        removed_idx.update(np.where(idx)[0])
+                if sec1 is not False and sec2 is not False:
+                    max_min_d = 0
+                    remove = False
+                    for point in sec1[:,1]:
+                        dist = np.linalg.norm(sec2[:,1] - point, axis=1).min()
+                        max_min_d = dist if max_min_d < dist else max_min_d
+                    if max_min_d < THRESHOLD*2: remove = True
+                    
+                    # Removing tiles
+                    if remove:
+                        for point in sec2:
+                            idx = np.all(track2[:,:,[2,3]] == point, axis=(1,2))
+                            removed_idx.update(np.where(idx)[0])
 
-        track2 = np.delete(track2, list(removed_idx), axis=0) # efficient way to delete them from np.array
+            track2 = np.delete(track2, list(removed_idx), axis=0) # efficient way to delete them from np.array
 
-        self.intersections = intersections
-        
-        self.tracks[0] = track1
-        self.tracks[1] = track2
+            self.intersections = intersections
+            
+            self.tracks[0] = track1
+            self.tracks[1] = track2
 
 
     def _render_tiles(self):
@@ -675,24 +738,28 @@ class CarRacing(gym.Env, EzPickle):
         gl.glEnd()
 
     def render_road_lines(self):
-        
-        print_intersections = True
+        pass        
 
+    def render_debug_clues(self):
         gl.glBegin(gl.GL_QUADS)
-        for x,y in self.track[self.info['end']][:,1,2:]:
-            gl.glColor4f(0, 1, 0, 1)
-            gl.glVertex3f(x+2,y+2,0)
-            gl.glVertex3f(x-2,y+2,0)
-            gl.glVertex3f(x-2,y-2,0)
-            gl.glVertex3f(x+2,y-2,0)
+
+        if SHOW_ENDS_OF_TRACKS:
+            for x,y in self.track[self.info['end']][:,1,2:]:
+                gl.glColor4f(0, 1, 0, 1)
+                gl.glVertex3f(x+2,y+2,0)
+                gl.glVertex3f(x-2,y+2,0)
+                gl.glVertex3f(x-2,y-2,0)
+                gl.glVertex3f(x+2,y-2,0)
             
-        for x,y in self.track[self.info['intersection']][:,1,2:]:
-            gl.glColor4f(1, 0, 0, 1)
-            gl.glVertex3f(x+1,y+1,0)
-            gl.glVertex3f(x-1,y+1,0)
-            gl.glVertex3f(x-1,y-1,0)
-            gl.glVertex3f(x+1,y-1,0)
+        if SHOW_INTERSECTIONS_POINTS:
+            for x,y in self.track[self.info['intersection']][:,1,2:]:
+                gl.glColor4f(1, 0, 0, 1)
+                gl.glVertex3f(x+1,y+1,0)
+                gl.glVertex3f(x-1,y+1,0)
+                gl.glVertex3f(x-1,y-1,0)
+                gl.glVertex3f(x+1,y-1,0)
         gl.glEnd()
+
 
     def render_indicators(self, W, H):
         gl.glBegin(gl.GL_QUADS)
