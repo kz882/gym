@@ -67,7 +67,7 @@ ROAD_COLOR = [0.4, 0.4, 0.4]
 SHOW_ENDS_OF_TRACKS       = False   # Shows with red dots the end of track
 SHOW_INTERSECTIONS_POINTS = False   # Shows with green dots the intersections of main track
 SHOW_AXIS                 = False   # Draws two lines where the x and y axis are
-ZOOM_OUT                  = 1       # Shows maps in general and does not do zoom
+ZOOM_OUT                  = 0       # Shows maps in general and does not do zoom
 if ZOOM_OUT: ZOOM         = 0.25    # Complementary to ZOOM_OUT
 
 class FrictionDetector(contactListener):
@@ -794,13 +794,24 @@ class CarRacing(gym.Env, EzPickle):
         self.score_label.text = "%04i" % self.reward
         self.score_label.draw()
 
-    def get_rnd_point_in_track(self):
+    def get_rnd_point_in_track(self,border=True):
         '''
         returns a random point in the track with the angle equal 
-        to the tile of the track
+        to the tile of the track, the x position can be randomly 
+        in the x (relative) axis of the tile, border=True make 
+        sure the x position is enough to make the car fit in 
+        the track, otherwise the point can be in the extreme 
+        of the track and two wheels will be outside the track
+        -----
+        Returns: [beta, x, y]
         '''
         idx = self.np_random.randint(0, len(self.track))
-        return self.track[idx,1,1:]
+        alpha, beta, x, y = self.track[idx,1,:]
+        r,l = self.info[idx]['lanes']
+        x_from = -TRACK_WIDTH*l+math.cos(alpha)*border*0.5
+        x_to   = +TRACK_WIDTH*r-math.sin(alpha)*border*0.5
+        x += np.random.uniform(x_from,x_to) 
+        return [beta, x, y]
 
 
 if __name__=="__main__":
