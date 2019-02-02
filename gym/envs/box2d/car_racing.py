@@ -67,7 +67,7 @@ ROAD_COLOR = [0.4, 0.4, 0.4]
 SHOW_ENDS_OF_TRACKS       = False   # Shows with red dots the end of track
 SHOW_INTERSECTIONS_POINTS = False   # Shows with green dots the intersections of main track
 SHOW_AXIS                 = False   # Draws two lines where the x and y axis are
-ZOOM_OUT                  = 0       # Shows maps in general and does not do zoom
+ZOOM_OUT                  = 1       # Shows maps in general and does not do zoom
 if ZOOM_OUT: ZOOM         = 0.25    # Complementary to ZOOM_OUT
 
 class FrictionDetector(contactListener):
@@ -136,7 +136,7 @@ class CarRacing(gym.Env, EzPickle):
 
         # Config
         self.num_lanes_changes = 3   # Number of points where lanes change from 1 lane to two and viceversa 
-        self.num_tracks        = 2   # Number of tracks, this control the complexity of the map
+        self.num_tracks        = 1   # Number of tracks, this control the complexity of the map
         self.num_lanes         = 2   # Number of lanes, 1 or 2
         self.prob_obstacle     = 0.1 # Percentage of finding a obstacle in a point of the row
 
@@ -278,10 +278,6 @@ class CarRacing(gym.Env, EzPickle):
         if well_glued_together > TRACK_DETAIL_STEP:
             return False
 
-        # x,y,theta
-        #track_alt = [[track[i][2],track[i][3],math.atan2(track[i][3]-track[i-1][3], track[i][2]-track[i-1][2])] for i in range(len(track))]
-        #track_alt = [[track_alt[i-1],track_alt[i]] for i in range(len(track_alt))]
-
         track     = [[track[i-1],track[i]] for i in range(len(track))]
         return track
 
@@ -412,10 +408,21 @@ class CarRacing(gym.Env, EzPickle):
                     r = 1- ((lane+1)%self.num_lanes)
                     l = 1- ((lane+2)%self.num_lanes)
 
+                    # Get if it is the first or last
+                    first = False # first of lane
+                    last  = False # last tile of line
+                    
+                    # Getting if first tile of lane
+                    # if last tile was from the same lane
+                    if self.info[j-1]['track'] == self.info[j]['track']:
+                        # If last tile didnt exist
+                        if self.info[j-1]['lanes'][lane] == False:
+                            first = True
+
                     road1_l = (x1 - l*TRACK_WIDTH*math.cos(beta1), y1 - l*TRACK_WIDTH*math.sin(beta1))
                     road1_r = (x1 + r*TRACK_WIDTH*math.cos(beta1), y1 + r*TRACK_WIDTH*math.sin(beta1))
-                    road2_l = (x2 - l*TRACK_WIDTH*math.cos(beta2), y2 - l*TRACK_WIDTH*math.sin(beta2))
-                    road2_r = (x2 + r*TRACK_WIDTH*math.cos(beta2), y2 + r*TRACK_WIDTH*math.sin(beta2))
+                    road2_l = (x2 - (1-first)*l*TRACK_WIDTH*math.cos(beta2), y2 - l*TRACK_WIDTH*math.sin(beta2))
+                    road2_r = (x2 + (1-first)*r*TRACK_WIDTH*math.cos(beta2), y2 + r*TRACK_WIDTH*math.sin(beta2))
 
                     t = self.world.CreateStaticBody( fixtures = fixtureDef(
                         shape=polygonShape(vertices=[road1_l, road1_r, road2_r, road2_l])
@@ -808,8 +815,8 @@ class CarRacing(gym.Env, EzPickle):
         idx = self.np_random.randint(0, len(self.track))
         alpha, beta, x, y = self.track[idx,1,:]
         r,l = self.info[idx]['lanes']
-        x_from = -TRACK_WIDTH*l+math.cos(alpha)*border*0.5
-        x_to   = +TRACK_WIDTH*r-math.sin(alpha)*border*0.5
+        x_from = -TRACK_WIDTH*l+math.cos(alpha)*border*1
+        x_to   = +TRACK_WIDTH*r-math.sin(alpha)*border*1
         x += np.random.uniform(x_from,x_to) 
         return [beta, x, y]
 

@@ -47,6 +47,7 @@ Returns: [beta, x, y]
 
 ## To Improve (by importance)
 
+0. Work on smoothing lane ends
 1. Get tile with certain conditions
 
    3. with certain angle (e.g. >40º)
