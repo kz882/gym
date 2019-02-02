@@ -257,6 +257,38 @@ class CarRacing(gym.Env, EzPickle):
         track     = [[track[i-1],track[i]] for i in range(len(track))]
         return track
 
+    def _create_info(self):
+        '''
+        Creates the matrix with the information about the track points,
+        whether they are at the end of the track, if they are intersections
+        '''
+        # Get if point is at the end
+        info  = np.zeros((sum(len(t) for t in self.tracks)),dtype=[
+            ('track', 'int'),
+            ('end','bool'),
+            ('intersection','bool'),
+            ('lanes',np.ndarray),
+            ('obstacles',np.ndarray)])
+        for i in range(1, len(self.tracks)): 
+            track = self.tracks[i]
+            info[len(self.tracks[i-1])-1:len(self.tracks[i-1])+len(track)]['track'] = i
+            for j in range(len(track)):
+                pos = j + len(self.tracks[i-1])
+                p = track[j]
+                next_p = track[(j+1)%len(track)]
+                last_p = track[j-1]
+                if np.array_equal(p[1], next_p[0]) == False or np.array_equal(p[0], last_p[1]) == False:
+                    # it is at the end
+                    info[pos]['end'] = True
+
+        # Find if tiles in principal track are close to an intersection TODO NOT WORKING
+        intersections_idx = set()
+        for point in self.track[list(info['end'])][:,1,2:]:
+            intersections_idx.add(np.argmin(np.linalg.norm(self.tracks[0][:,1,2:] - point, axis=1)))
+        info['intersection'][list(intersections_idx)] = True
+
+        self.info = info
+        
     def _create_track(self):
 
         track_num  = 2
@@ -269,6 +301,10 @@ class CarRacing(gym.Env, EzPickle):
         self.tracks = tracks
         self._remove_roads()
 
+        self.track  = np.concatenate(self.tracks)
+
+        self._create_info()
+    
         # Red-white border on hard turns
         borders = []
         for track in self.tracks:
@@ -349,7 +385,6 @@ class CarRacing(gym.Env, EzPickle):
                         color = [1,0.5,0.3]
                         self.road_poly.append(( [l1,r1,l2,r2], color ))
 
-        self.track  = np.concatenate(self.tracks)
         return True
 
     def reset(self):
@@ -523,7 +558,7 @@ class CarRacing(gym.Env, EzPickle):
         points1 = track1[:,:,[2,3]]
         points2 = track2[:,:,[2,3]]
 
-        inter1 = np.array([x for x in points2 if (np.linalg.norm(points1[:,1,:]-x[1:], axis=1) <= TRACK_WIDTH*1.25).sum() >= 1])
+        #inter1 = np.array([x for x in points2 if (np.linalg.norm(points1[:,1,:]-x[1:], axis=1) <= TRACK_WIDTH*1.25).sum() >= 1]) TODO delete
         inter2 = np.array([x for x in points2 if (np.linalg.norm(points1[:,1,:]-x[1:], axis=1) <= TRACK_WIDTH/3.5 ).sum() >= 1])
 
         intersections = []
@@ -615,7 +650,6 @@ class CarRacing(gym.Env, EzPickle):
             for point1, point2 in track:
                 alpha1,beta1,x1,y1 = point1
                 beta1 = alpha1
-                #set_trace()
 
                 gl.glColor4f(0, 0, 0, 0)
                 gl.glVertex3f(x1+2,y1, 0)
@@ -642,17 +676,23 @@ class CarRacing(gym.Env, EzPickle):
 
     def render_road_lines(self):
         
-        print_intersections = False
+        print_intersections = True
 
-        if self.intersections is not None and print_intersections:
-            for x,y in self.intersections[:,1]:
-                gl.glBegin(gl.GL_QUADS)
-                gl.glColor4f(250, 0, 0, 1)
-                gl.glVertex3f(x+1,y+1,0)
-                gl.glVertex3f(x-1,y+1,0)
-                gl.glVertex3f(x-1,y-1,0)
-                gl.glVertex3f(x+1,y-1,0)
-                gl.glEnd()
+        gl.glBegin(gl.GL_QUADS)
+        for x,y in self.track[self.info['end']][:,1,2:]:
+            gl.glColor4f(0, 1, 0, 1)
+            gl.glVertex3f(x+2,y+2,0)
+            gl.glVertex3f(x-2,y+2,0)
+            gl.glVertex3f(x-2,y-2,0)
+            gl.glVertex3f(x+2,y-2,0)
+            
+        for x,y in self.track[self.info['intersection']][:,1,2:]:
+            gl.glColor4f(1, 0, 0, 1)
+            gl.glVertex3f(x+1,y+1,0)
+            gl.glVertex3f(x-1,y+1,0)
+            gl.glVertex3f(x-1,y-1,0)
+            gl.glVertex3f(x+1,y-1,0)
+        gl.glEnd()
 
     def render_indicators(self, W, H):
         gl.glBegin(gl.GL_QUADS)
