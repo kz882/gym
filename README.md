@@ -48,7 +48,10 @@ Returns: [beta, x, y]
 
 ## To Improve (by importance)
 
+1. Add small distance to d to joing tracks, bigger than x and greater than 50
+1. Avoid change lanes after change lanes
 1. Do NOT compare first tile of main track with last tile of `self.track`
+1. Get rnd position, correct depnding on lane
 1. Get tile with certain conditions
 
    3. with certain angle (e.g. >40º)

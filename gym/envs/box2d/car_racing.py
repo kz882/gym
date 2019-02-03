@@ -328,18 +328,30 @@ class CarRacing(gym.Env, EzPickle):
         if self.num_lanes_changes > 0 and self.num_lanes > 1:
             rm_lane = 0 # 1 remove lane, 0 keep lane
             lane    = 0 # Which lane will be removed
-            changes = self.np_random.randint(0,len(self.track),self.num_lanes_changes)
+            changes = np.sort(self.np_random.randint(0,len(self.track),self.num_lanes_changes))
+
+            changes = np.sort(np.append(changes,[0])) # TODO delete
 
             # check in changes work
             # There must be no change at least 50 pos before and end and after a start
             changes_bad = []
-            for idx in changes:
-                idx_relative = idx - sum(self.info['track'] < self.info[idx]['track'])
+            for pos, idx in enumerate(changes):
+                start_from = sum(self.info['track'] <  self.info[idx]['track'])
+                until      = sum(self.info['track'] == self.info[idx]['track'])
+                changes_in_track = np.subtract(changes, start_from)
+                changes_in_track = changes_in_track[(changes_in_track < until)*(changes_in_track > 0)]
+                idx_relative = idx - start_from 
+
+                if sum(((changes_in_track - idx) > 0)*((changes_in_track - idx) < 10)) > 0: # TODO wont work when at end of track
+                    changes_bad.append(idx)
+                    next
+
                 track_info   = self.info[self.info['track'] == self.info[idx]['track']]
                 for i in range(50+1):
                     if track_info[(idx_relative+i)%len(track_info)]['end'] or track_info[idx_relative-i]['start']:
                         changes_bad.append(idx)
                         break
+
             if len(changes_bad) > 0:
                 changes = np.setdiff1d(changes,changes_bad)
 
@@ -356,6 +368,13 @@ class CarRacing(gym.Env, EzPickle):
                 # Change if end/inter of or if change prob
                 if self.info[i]['end'] or self.info[i]['start']: 
                     rm_lane = 0
+
+            # Avoiding any change of lanes in last and beginning part of a track
+            for num_track in range(self.num_tracks):
+                for lane in range(self.num_lanes):
+                    for i in range(10):
+                        self.info[self.info['track'] == num_track][+i]['lanes'][lane] = True
+                        self.info[self.info['track'] == num_track][-i]['lanes'][lane] = True
         
     def _create_track(self):
 
@@ -405,6 +424,7 @@ class CarRacing(gym.Env, EzPickle):
 
                     c = 1
 
+                    # Addapting border to appear at the right widht when there are different number of lanes
                     if self.num_lanes > 1:
                         if side == -1 and self.info[pos]['lanes'][0] == False: c = 0
                         if side == +1 and self.info[pos]['lanes'][1] == False: c = 0
@@ -439,23 +459,26 @@ class CarRacing(gym.Env, EzPickle):
 
                         # Getting if first tile of lane
                         # if last tile was from the same lane
-                        if self.info[j-1]['track'] == self.info[j]['track']:
+                        info_track = self.info[self.info['track'] == self.info[j]['track']]
+                        j_relative = j - sum(self.info['track'] < self.info[j]['track'])
+                        
+                        if info_track[j_relative-1]['track'] == info_track[j_relative]['track']:
                             # If last tile didnt exist
-                            if self.info[j-1]['lanes'][lane] == False:
+                            if info_track[j_relative-1]['lanes'][lane] == False:
                                 first = True
-                        elif np.where(self.info['track'] == self.info[j]['track'])[0].min() == j: # if it is first tile of track
-                            #check the last of their track
-                            if self.info[self.info['track'] == self.info[j]['track']][-1]['lanes'][lane] == False:
-                                first = True
+                        #elif np.where(self.info['track'] == self.info[j]['track'])[0].min() == j: # if it is first tile of track
+                        #    #check the last of their track
+                        #    if self.info[self.info['track'] == self.info[j]['track']][-1]['lanes'][lane] == False:
+                        #        first = True
                         # if next tile is from the same lane
-                        if self.info[(j+1)%len(self.info)]['track'] == self.info[j]['track']:
+                        if info_track[(j_relative+1)%len(info_track)]['track'] == info_track[j_relative]['track']:
                             # If last tile didnt exist
-                            if self.info[(j+1)%len(self.info)]['lanes'][lane] == False:
+                            if info_track[(j_relative+1)%len(info_track)]['lanes'][lane] == False:
                                 last = True
-                        elif np.where(self.info['track'] == self.info[j]['track'])[0].max() == j: # if it is last tile of track
-                            #check the last of their track
-                            if self.info[self.info['track'] == self.info[j]['track']][0]['lanes'][lane] == False:
-                                last = True
+                        #elif np.where(self.info['track'] == self.info[j]['track'])[0].max() == j: # if it is last tile of track
+                        #    #check the last of their track
+                        #    if self.info[self.info['track'] == self.info[j]['track']][0]['lanes'][lane] == False:
+                        #        last = True
 
                     road1_l = (x1 - (1-last) *l*TRACK_WIDTH*math.cos(beta1), y1 - (1-last) *l*TRACK_WIDTH*math.sin(beta1))
                     road1_r = (x1 + (1-last) *r*TRACK_WIDTH*math.cos(beta1), y1 + (1-last) *r*TRACK_WIDTH*math.sin(beta1))
@@ -892,6 +915,7 @@ if __name__=="__main__":
         if k==key.RIGHT and a[0]==+1.0: a[0] = 0
         if k==key.UP:    a[1] = 0
         if k==key.DOWN:  a[2] = 0
+        if k==key.D:     set_trace()
     env = CarRacing()
     env.render()
     record_video = False
