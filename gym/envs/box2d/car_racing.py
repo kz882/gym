@@ -64,10 +64,11 @@ BORDER_MIN_COUNT = 4
 ROAD_COLOR = [0.4, 0.4, 0.4]
 
 # Debug actions
-SHOW_ENDS_OF_TRACKS       = 1       # Shows with red dots the end of track
-SHOW_START_OF_TRACKS      = 1       # Shows with green dots the end of track
-SHOW_INTERSECTIONS_POINTS = False   # Shows with yellow dots the intersections of main track
-SHOW_AXIS                 = False   # Draws two lines where the x and y axis are
+SHOW_ENDS_OF_TRACKS       = 0       # Shows with red dots the end of track
+SHOW_START_OF_TRACKS      = 0       # Shows with green dots the end of track
+SHOW_INTERSECTIONS_POINTS = 0       # Shows with yellow dots the intersections of main track
+SHOW_JOINTS               = 0       # Shows joints in white
+SHOW_AXIS                 = 0       # Draws two lines where the x and y axis are
 ZOOM_OUT                  = 1       # Shows maps in general and does not do zoom
 if ZOOM_OUT: ZOOM         = 0.25    # Complementary to ZOOM_OUT
 
@@ -297,7 +298,6 @@ class CarRacing(gym.Env, EzPickle):
             ('lanes',np.ndarray),
             ('obstacles',np.ndarray)])
 
-        #info['lanes'] = copy([[True]*self.num_lanes])*len(info)
         for i in range(len(info)):
             info[i]['lanes'] = [True, True]
 
@@ -329,6 +329,20 @@ class CarRacing(gym.Env, EzPickle):
             rm_lane = 0 # 1 remove lane, 0 keep lane
             lane    = 0 # Which lane will be removed
             changes = self.np_random.randint(0,len(self.track),self.num_lanes_changes)
+
+            # check in changes work
+            # There must be no change at least 50 pos before and end and after a start
+            changes_bad = []
+            for idx in changes:
+                idx_relative = idx - sum(self.info['track'] < self.info[idx]['track'])
+                track_info   = self.info[self.info['track'] == self.info[idx]['track']]
+                for i in range(50+1):
+                    if track_info[(idx_relative+i)%len(track_info)]['end'] or track_info[idx_relative-i]['start']:
+                        changes_bad.append(idx)
+                        break
+            if len(changes_bad) > 0:
+                changes = np.setdiff1d(changes,changes_bad)
+
             for i, point in enumerate(self.track):
                 change = True if i in changes else False
                 rm_lane = (rm_lane+change)%2
@@ -493,7 +507,10 @@ class CarRacing(gym.Env, EzPickle):
                         ))
                     t.userData = t
                     c = 0.01*(i%3)
-                    t.color = [ROAD_COLOR[0], ROAD_COLOR[1], ROAD_COLOR[2]] if not joint else [1,1,1]
+                    if joint and SHOW_JOINTS:
+                        t.color = [1,1,1]
+                    else:
+                        t.color = [ROAD_COLOR[0], ROAD_COLOR[1], ROAD_COLOR[2]] 
                     t.road_visited = False
                     t.road_friction = 1.0
                     t.fixtures[0].sensor = True

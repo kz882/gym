@@ -42,13 +42,13 @@ This are some improvements of the environment, this allows configures each exper
 
 ### Ger random position in the track
 
-'get_rnd_point_in_track(border)` : returns a random point in the track with the angle equal to the tile of the track, the x position can be randomly in the x (relative) axis of the tile, border=True make sure the x position is enough to make the car fit in the track, otherwise the point can be in the extreme of the track and two wheels will be outside the track
+`get_rnd_point_in_track(border)` : returns a random point in the track with the angle equal to the tile of the track, the x position can be randomly in the x (relative) axis of the tile, border=True make sure the x position is enough to make the car fit in the track, otherwise the point can be in the extreme of the track and two wheels will be outside the track
 Returns: [beta, x, y]
 
 
 ## To Improve (by importance)
 
-1. Connect end of lines appropiately
+1. Do NOT compare first tile of main track with last tile of `self.track`
 1. Get tile with certain conditions
 
    3. with certain angle (e.g. >40º)
