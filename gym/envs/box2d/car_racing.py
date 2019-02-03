@@ -69,7 +69,7 @@ SHOW_START_OF_TRACKS      = 0       # Shows with green dots the end of track
 SHOW_INTERSECTIONS_POINTS = 0       # Shows with yellow dots the intersections of main track
 SHOW_JOINTS               = 0       # Shows joints in white
 SHOW_AXIS                 = 0       # Draws two lines where the x and y axis are
-ZOOM_OUT                  = 1       # Shows maps in general and does not do zoom
+ZOOM_OUT                  = 0       # Shows maps in general and does not do zoom
 if ZOOM_OUT: ZOOM         = 0.25    # Complementary to ZOOM_OUT
 
 class FrictionDetector(contactListener):
@@ -141,6 +141,7 @@ class CarRacing(gym.Env, EzPickle):
         self.num_tracks        = 2   # Number of tracks, this control the complexity of the map
         self.num_lanes         = 2   # Number of lanes, 1 or 2
         self.prob_obstacle     = 0.1 # Percentage of finding a obstacle in a point of the row
+        self.max_single_lane   = 50  # Max number of tiles of a single lane road
 
         self.action_space = spaces.Box( np.array([-1,0,0]), np.array([+1,+1,+1]), dtype=np.float32)  # steer, gas, brake
         self.observation_space = spaces.Box(low=0, high=255, shape=(STATE_H, STATE_W, 3), dtype=np.uint8)
@@ -159,11 +160,14 @@ class CarRacing(gym.Env, EzPickle):
                                      total number of points in track
         prob_obstacle     (foat 0.1) The probability of finding an obstacle a point of 
                                      the track, [0,1]
+        max_single_lane   (int 50)   The maximum number of tiles that a single lane road
+                                     can have before becoming two lanes again
         '''
         self.num_lanes         = num_lanes  if num_lanes  > 0 and num_lanes  <= 2 else self.num_lanes
         self.num_tracks        = num_tracks if num_tracks > 0 and num_tracks <= 2 else self.num_tracks
         self.prob_obstacle     = prob_obstacle if prob_obstacle >= 0 and prob_obstacle <= 1 else self.prob_obstacle
         self.num_lanes_changes = num_lanes_changes if num_lanes_changes >= 0 else self.num_lanes_changes
+        self.max_single_lane   = max_single_lane if max_single_lane > 10 else self.max_single_lane
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -330,8 +334,6 @@ class CarRacing(gym.Env, EzPickle):
             lane    = 0 # Which lane will be removed
             changes = np.sort(self.np_random.randint(0,len(self.track),self.num_lanes_changes))
 
-            changes = np.sort(np.append(changes,[0])) # TODO delete
-
             # check in changes work
             # There must be no change at least 50 pos before and end and after a start
             changes_bad = []
@@ -355,6 +357,7 @@ class CarRacing(gym.Env, EzPickle):
             if len(changes_bad) > 0:
                 changes = np.setdiff1d(changes,changes_bad)
 
+            counter = 0 # in order to avoid more than max number of single lanes tiles
             for i, point in enumerate(self.track):
                 change = True if i in changes else False
                 rm_lane = (rm_lane+change)%2
@@ -364,9 +367,12 @@ class CarRacing(gym.Env, EzPickle):
 
                 if rm_lane:
                     self.info[i]['lanes'][lane] = False
+                    counter +=1
+                else:
+                    counter  =0
 
                 # Change if end/inter of or if change prob
-                if self.info[i]['end'] or self.info[i]['start']: 
+                if self.info[i]['end'] or self.info[i]['start'] or counter > self.max_single_lane: 
                     rm_lane = 0
 
             # Avoiding any change of lanes in last and beginning part of a track
@@ -375,6 +381,7 @@ class CarRacing(gym.Env, EzPickle):
                     for i in range(10):
                         self.info[self.info['track'] == num_track][+i]['lanes'][lane] = True
                         self.info[self.info['track'] == num_track][-i]['lanes'][lane] = True
+
         
     def _create_track(self):
 
@@ -466,19 +473,10 @@ class CarRacing(gym.Env, EzPickle):
                             # If last tile didnt exist
                             if info_track[j_relative-1]['lanes'][lane] == False:
                                 first = True
-                        #elif np.where(self.info['track'] == self.info[j]['track'])[0].min() == j: # if it is first tile of track
-                        #    #check the last of their track
-                        #    if self.info[self.info['track'] == self.info[j]['track']][-1]['lanes'][lane] == False:
-                        #        first = True
-                        # if next tile is from the same lane
                         if info_track[(j_relative+1)%len(info_track)]['track'] == info_track[j_relative]['track']:
                             # If last tile didnt exist
                             if info_track[(j_relative+1)%len(info_track)]['lanes'][lane] == False:
                                 last = True
-                        #elif np.where(self.info['track'] == self.info[j]['track'])[0].max() == j: # if it is last tile of track
-                        #    #check the last of their track
-                        #    if self.info[self.info['track'] == self.info[j]['track']][0]['lanes'][lane] == False:
-                        #        last = True
 
                     road1_l = (x1 - (1-last) *l*TRACK_WIDTH*math.cos(beta1), y1 - (1-last) *l*TRACK_WIDTH*math.sin(beta1))
                     road1_r = (x1 + (1-last) *r*TRACK_WIDTH*math.cos(beta1), y1 + (1-last) *r*TRACK_WIDTH*math.sin(beta1))
@@ -508,9 +506,10 @@ class CarRacing(gym.Env, EzPickle):
                                 p3_org = sum([x[0] for x in self.road_poly[:max_idx]],[])
                                 # filter p3 by distance to p1 < TRACK_WIDTH*2
                                 distance = TRACK_WIDTH*2
+                                not_too_close = np.where(np.linalg.norm(np.subtract(p3_org,p1),axis=1) >= TRACK_WIDTH/3)[0]
                                 while len(p3) == 0 and distance < PLAYFIELD:
                                     close = np.where(np.linalg.norm(np.subtract(p3_org,p1),axis=1) <= distance)[0]
-                                    p3 = [p3_org[i] for i in close]
+                                    p3 = [p3_org[i] for i in np.intersect1d(close,not_too_close)]
                                     distance += TRACK_WIDTH
 
                             if len(p3) == 0:
