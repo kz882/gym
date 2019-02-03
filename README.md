@@ -48,22 +48,22 @@ Returns: [beta, x, y]
 
 ## To Improve (by importance)
 
-1. Add small distance to d to joing tracks, bigger than x and greater than 50
-1. Avoid change lanes after change lanes
-1. Do NOT compare first tile of main track with last tile of `self.track`
-1. Get rnd position, correct depnding on lane
-1. Get tile with certain conditions
+- [ ] Add small distance to d to joing tracks, bigger than x and greater than 50
+- [x] ~~Avoid change lanes after change lanes~~
+- [x] ~~Do NOT compare first tile of main track with last tile of `self.track`~~
+- [ ] Get rnd position, correct depnding on lane
+- [ ] Get tile with certain conditions
 
-   3. with certain angle (e.g. >40º)
-   3. In an T-junction
-   3. in an X-junction
-   3. With obstacle in front
+   - [ ] with certain angle (e.g. >40º)
+   - [ ] In an T-junction
+   - [ ] in an X-junction
+   - [ ] With obstacle in front
 
-3. Get outside position
-3. Detect change of line
-3. Add obstacles
-3. Add road lines
-3. Change car when not racing
+- [ ] Get outside position
+- [ ] Detect change of line
+- [ ] Add obstacles
+- [ ] Add road lines
+- [ ] Change car when not racing
  
 ---
 
