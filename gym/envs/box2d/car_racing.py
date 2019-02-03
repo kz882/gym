@@ -290,7 +290,9 @@ class CarRacing(gym.Env, EzPickle):
         info  = np.zeros((sum(len(t) for t in self.tracks)),dtype=[
             ('track', 'int'),
             ('end','bool'),
-            ('intersection','bool'),
+            ('begining', 'bool'),
+            ('intersection', 'bool'),
+            ('start','bool'),
             ('lanes',np.ndarray),
             ('obstacles',np.ndarray)])
 
@@ -306,13 +308,16 @@ class CarRacing(gym.Env, EzPickle):
                 p = track[j]
                 next_p = track[(j+1)%len(track)]
                 last_p = track[j-1]
-                if np.array_equal(p[1], next_p[0]) == False or np.array_equal(p[0], last_p[1]) == False:
+                if np.array_equal(p[1], next_p[0]) == False:
                     # it is at the end
                     info[pos]['end'] = True
+                elif np.array_equal(p[0], last_p[1]) == False:
+                    # it is at the start
+                    info[pos]['start'] = True
 
         # Find if tiles in principal track are close to an intersection TODO NOT WORKING
         intersections_idx = set()
-        for point in self.track[list(info['end'])][:,1,2:]:
+        for point in self.track[np.logical_or(info['end'],info['start'])][:,1,2:]:
             intersections_idx.add(np.argmin(np.linalg.norm(self.tracks[0][:,1,2:] - point, axis=1)))
         info['intersection'][list(intersections_idx)] = True
 
@@ -334,7 +339,7 @@ class CarRacing(gym.Env, EzPickle):
                     self.info[i]['lanes'][lane] = False
 
                 # Change if end/inter of or if change prob
-                if self.info[i]['end']: 
+                if self.info[i]['end'] or self.info[i]['start']: 
                     rm_lane = 0
         
     def _create_track(self):
@@ -398,6 +403,7 @@ class CarRacing(gym.Env, EzPickle):
 
 
         # Create tiles
+        p3 = [] # in order to save all points 3 to create joints
         for j in range(len(self.track)):
             obstacle = np.random.binomial(1,self.prob_obstacle)
             alpha1, beta1, x1, y1 = self.track[j][1]
@@ -405,37 +411,70 @@ class CarRacing(gym.Env, EzPickle):
 
             for lane in range(self.num_lanes):
                 if self.info[j]['lanes'][lane]:
+
                     r = 1- ((lane+1)%self.num_lanes)
                     l = 1- ((lane+2)%self.num_lanes)
 
                     # Get if it is the first or last
                     first = False # first of lane
                     last  = False # last tile of line
-                    
-                    # Getting if first tile of lane
-                    # if last tile was from the same lane
-                    if self.info[j-1]['track'] == self.info[j]['track']:
-                        # If last tile didnt exist
-                        if self.info[j-1]['lanes'][lane] == False:
-                            first = True
-                    elif np.where(self.info['track'] == self.info[j]['track'])[0].min() == j: # if it is first tile of track
-                        #check the last of their track
-                        if self.info[self.info['track'] == self.info[j]['track']][-1]['lanes'][lane] == False:
-                            first = True
-                    # if next tile is from the same lane
-                    if self.info[(j+1)%len(self.info)]['track'] == self.info[j]['track']:
-                        # If last tile didnt exist
-                        if self.info[(j+1)%len(self.info)]['lanes'][lane] == False:
-                            last = True
-                    elif np.where(self.info['track'] == self.info[j]['track'])[0].max() == j: # if it is last tile of track
-                        #check the last of their track
-                        if self.info[self.info['track'] == self.info[j]['track']][0]['lanes'][lane] == False:
-                            last = True
 
-                    road1_l = (x1 - (1-last)*l*TRACK_WIDTH*math.cos(beta1), y1 - (1-last)*l*TRACK_WIDTH*math.sin(beta1))
-                    road1_r = (x1 + (1-last)*r*TRACK_WIDTH*math.cos(beta1), y1 + (1-last)*r*TRACK_WIDTH*math.sin(beta1))
-                    road2_l = (x2 - (1-first)*l*TRACK_WIDTH*math.cos(beta2), y2 - (1-first)*l*TRACK_WIDTH*math.sin(beta2))
-                    road2_r = (x2 + (1-first)*r*TRACK_WIDTH*math.cos(beta2), y2 + (1-first)*r*TRACK_WIDTH*math.sin(beta2))
+                    if self.info[j]['end'] == False and self.info[j]['start'] == False:
+
+                        # Getting if first tile of lane
+                        # if last tile was from the same lane
+                        if self.info[j-1]['track'] == self.info[j]['track']:
+                            # If last tile didnt exist
+                            if self.info[j-1]['lanes'][lane] == False:
+                                first = True
+                        elif np.where(self.info['track'] == self.info[j]['track'])[0].min() == j: # if it is first tile of track
+                            #check the last of their track
+                            if self.info[self.info['track'] == self.info[j]['track']][-1]['lanes'][lane] == False:
+                                first = True
+                        # if next tile is from the same lane
+                        if self.info[(j+1)%len(self.info)]['track'] == self.info[j]['track']:
+                            # If last tile didnt exist
+                            if self.info[(j+1)%len(self.info)]['lanes'][lane] == False:
+                                last = True
+                        elif np.where(self.info['track'] == self.info[j]['track'])[0].max() == j: # if it is last tile of track
+                            #check the last of their track
+                            if self.info[self.info['track'] == self.info[j]['track']][0]['lanes'][lane] == False:
+                                last = True
+
+                        road1_l = (x1 - (1-last)*l*TRACK_WIDTH*math.cos(beta1), y1 - (1-last)*l*TRACK_WIDTH*math.sin(beta1))
+                        road1_r = (x1 + (1-last)*r*TRACK_WIDTH*math.cos(beta1), y1 + (1-last)*r*TRACK_WIDTH*math.sin(beta1))
+                        road2_l = (x2 - (1-first)*l*TRACK_WIDTH*math.cos(beta2), y2 - (1-first)*l*TRACK_WIDTH*math.sin(beta2))
+                        road2_r = (x2 + (1-first)*r*TRACK_WIDTH*math.cos(beta2), y2 + (1-first)*r*TRACK_WIDTH*math.sin(beta2))
+
+                    elif False: # if it is end or start
+                        
+                        road1_l = (x1 - (1-last)*l*TRACK_WIDTH*math.cos(beta1), y1 - (1-last)*l*TRACK_WIDTH*math.sin(beta1)) # The first points will be the same
+                        road1_r = (x1 + (1-last)*r*TRACK_WIDTH*math.cos(beta1), y1 + (1-last)*r*TRACK_WIDTH*math.sin(beta1)) # The first points will be the same
+
+                        # Get the closest point to a line make by the continuing trend of the original road points, the points will be the points 
+                        # under a radius r from line to avoid taking points far away in the other extreme of the track
+                        # Remember the distance from a point p3 to a line p1,p2 is d = norm(np.cross(p2-p1, p1-p3))/norm(p2-p1)
+                        # p1=(x1,y1)+sin/cos, p2=(x2,y2)+sin/cos, p3=points in poly
+                        if self.info[j]['end']:
+                            p1 = road1_l
+                            p2 = road2_l
+                        else:
+                            p1 = 2
+                            p2 = 2
+
+                        max_idx = len(self.tracks[0]) # this will work because only seconday tracks have ends
+                        if len(p3) == 0:
+                            p3 = sum([x[0] for x in self.road_poly[:max_idx]],[])
+
+                            # filter p3 by distance to p1 < TRACK_WIDTH*2
+
+                        set_trace() # Check if d is correctly contructed
+                        d = np.linalg.norm(np.cross(p2-p1,p1-p3))/np.linalg.norm(p2-p1)
+
+
+                        road2_l = (x2 - (1-first)*l*TRACK_WIDTH*math.cos(beta2), y2 - (1-first)*l*TRACK_WIDTH*math.sin(beta2)) # Depends on closest point
+                        road2_r = (x2 + (1-first)*r*TRACK_WIDTH*math.cos(beta2), y2 + (1-first)*r*TRACK_WIDTH*math.sin(beta2)) # Depends on closest point
+
 
                     t = self.world.CreateStaticBody( fixtures = fixtureDef(
                         shape=polygonShape(vertices=[road1_l, road1_r, road2_r, road2_l])
@@ -481,7 +520,6 @@ class CarRacing(gym.Env, EzPickle):
         self.tile_visited_count = 0
         self.t = 0.0
         self.road_poly = []
-        self.road_poly_junctions = []
         self.track = []
         self.tracks = []
         self.human_render = False
@@ -696,17 +734,6 @@ class CarRacing(gym.Env, EzPickle):
             for p in poly:
                 gl.glVertex3f(p[0], p[1], 0)
 
-    def _render_junctions(self):
-        '''
-        Can only be called inside a glBegin
-        '''
-        # drawing junctions (NOT WORKING)
-        for poly, color in self.road_poly_junctions:
-            gl.glColor4f(color[0], color[1], color[2], 1)
-            for p in poly:
-                gl.glVertex3f(p[0], p[1], 0)
-        
-
     def render_road(self):
         gl.glBegin(gl.GL_QUADS)
         gl.glColor4f(0.4, 0.8, 0.4, 1.0)
@@ -724,8 +751,6 @@ class CarRacing(gym.Env, EzPickle):
                 gl.glVertex3f(k*x + k, k*y + k, 0)
 
         self._render_tiles()
-
-        #self._render_junctions()
 
         # drawing angles of old config, the 
         # black line is the angle (NOT WORKING)
@@ -764,7 +789,7 @@ class CarRacing(gym.Env, EzPickle):
         gl.glBegin(gl.GL_QUADS)
 
         if SHOW_ENDS_OF_TRACKS:
-            for x,y in self.track[self.info['end']][:,1,2:]:
+            for x,y in self.track[np.logical_or(self.info['end'],self.info['start'])][:,1,2:]:
                 gl.glColor4f(0, 1, 0, 1)
                 gl.glVertex3f(x+2,y+2,0)
                 gl.glVertex3f(x-2,y+2,0)

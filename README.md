@@ -6,6 +6,7 @@ This repo has improvements on the complexity for CarRacing-v1
 ## Improved
 
 * Complexity of map (several types of intersections)
+* Complexity of map (different numbers of lanes)
 * Obstacles added
 * More control over the agent
 * Easy to modify the reward function
@@ -36,7 +37,7 @@ This are some improvements of the environment, this allows configures each exper
 
 ### Set intial speed of agent
 
-`set_speed(speed)`: This function will set the initial position of the car
+`set_speed(speed)`: This function will set the initial of the car
 
 
 ### Ger random position in the track
@@ -47,7 +48,7 @@ Returns: [beta, x, y]
 
 ## To Improve (by importance)
 
-0. Work on smoothing lane ends
+1. Connect end of lines appropiately
 1. Get tile with certain conditions
 
    3. with certain angle (e.g. >40º)
