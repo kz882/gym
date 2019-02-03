@@ -24,6 +24,13 @@ Some maps
 ![map](img/map1.png)
 ![map](img/map2.png)
 
+you can have even more complex maps
+
+![map](img/map3.png)
+![map](img/map4.png)
+
+more complex maps are possible but not recomended
+
 
 ## Improvements
 

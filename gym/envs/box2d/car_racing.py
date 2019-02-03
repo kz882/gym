@@ -69,7 +69,7 @@ SHOW_START_OF_TRACKS      = 0       # Shows with green dots the end of track
 SHOW_INTERSECTIONS_POINTS = 0       # Shows with yellow dots the intersections of main track
 SHOW_JOINTS               = 0       # Shows joints in white
 SHOW_AXIS                 = 0       # Draws two lines where the x and y axis are
-ZOOM_OUT                  = 0       # Shows maps in general and does not do zoom
+ZOOM_OUT                  = 1       # Shows maps in general and does not do zoom
 if ZOOM_OUT: ZOOM         = 0.25    # Complementary to ZOOM_OUT
 
 class FrictionDetector(contactListener):
