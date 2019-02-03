@@ -64,10 +64,11 @@ BORDER_MIN_COUNT = 4
 ROAD_COLOR = [0.4, 0.4, 0.4]
 
 # Debug actions
-SHOW_ENDS_OF_TRACKS       = False   # Shows with red dots the end of track
-SHOW_INTERSECTIONS_POINTS = False   # Shows with green dots the intersections of main track
+SHOW_ENDS_OF_TRACKS       = 1       # Shows with red dots the end of track
+SHOW_START_OF_TRACKS      = 1       # Shows with green dots the end of track
+SHOW_INTERSECTIONS_POINTS = False   # Shows with yellow dots the intersections of main track
 SHOW_AXIS                 = False   # Draws two lines where the x and y axis are
-ZOOM_OUT                  = 0       # Shows maps in general and does not do zoom
+ZOOM_OUT                  = 1       # Shows maps in general and does not do zoom
 if ZOOM_OUT: ZOOM         = 0.25    # Complementary to ZOOM_OUT
 
 class FrictionDetector(contactListener):
@@ -398,12 +399,11 @@ class CarRacing(gym.Env, EzPickle):
                     b1_r = (x1 + side*(TRACK_WIDTH*c+BORDER)*math.cos(beta1), y1 + side*(TRACK_WIDTH*c+BORDER)*math.sin(beta1))
                     b2_l = (x2 + side* TRACK_WIDTH*c        *math.cos(beta2), y2 + side* TRACK_WIDTH*c        *math.sin(beta2))
                     b2_r = (x2 + side*(TRACK_WIDTH*c+BORDER)*math.cos(beta2), y2 + side*(TRACK_WIDTH*c+BORDER)*math.sin(beta2))
-                    self.road_poly.append(( [b1_l, b1_r, b2_r, b2_l], (1,1,1) if i%2==0 else (1,0,0) ))
+                    self.border_poly.append(( [b1_l, b1_r, b2_r, b2_l], (1,1,1) if i%2==0 else (1,0,0) ))
                 pos += 1
 
 
         # Create tiles
-        p3 = [] # in order to save all points 3 to create joints
         for j in range(len(self.track)):
             obstacle = np.random.binomial(1,self.prob_obstacle)
             alpha1, beta1, x1, y1 = self.track[j][1]
@@ -411,6 +411,8 @@ class CarRacing(gym.Env, EzPickle):
 
             for lane in range(self.num_lanes):
                 if self.info[j]['lanes'][lane]:
+                    
+                    joint = False # to differentiate joints from normal tiles
 
                     r = 1- ((lane+1)%self.num_lanes)
                     l = 1- ((lane+2)%self.num_lanes)
@@ -441,70 +443,62 @@ class CarRacing(gym.Env, EzPickle):
                             if self.info[self.info['track'] == self.info[j]['track']][0]['lanes'][lane] == False:
                                 last = True
 
-                        road1_l = (x1 - (1-last)*l*TRACK_WIDTH*math.cos(beta1), y1 - (1-last)*l*TRACK_WIDTH*math.sin(beta1))
-                        road1_r = (x1 + (1-last)*r*TRACK_WIDTH*math.cos(beta1), y1 + (1-last)*r*TRACK_WIDTH*math.sin(beta1))
-                        road2_l = (x2 - (1-first)*l*TRACK_WIDTH*math.cos(beta2), y2 - (1-first)*l*TRACK_WIDTH*math.sin(beta2))
-                        road2_r = (x2 + (1-first)*r*TRACK_WIDTH*math.cos(beta2), y2 + (1-first)*r*TRACK_WIDTH*math.sin(beta2))
+                    road1_l = (x1 - (1-last) *l*TRACK_WIDTH*math.cos(beta1), y1 - (1-last) *l*TRACK_WIDTH*math.sin(beta1))
+                    road1_r = (x1 + (1-last) *r*TRACK_WIDTH*math.cos(beta1), y1 + (1-last) *r*TRACK_WIDTH*math.sin(beta1))
+                    road2_l = (x2 - (1-first)*l*TRACK_WIDTH*math.cos(beta2), y2 - (1-first)*l*TRACK_WIDTH*math.sin(beta2))
+                    road2_r = (x2 + (1-first)*r*TRACK_WIDTH*math.cos(beta2), y2 + (1-first)*r*TRACK_WIDTH*math.sin(beta2))
 
-                    elif False: # if it is end or start
-                        
-                        road1_l = (x1 - (1-last)*l*TRACK_WIDTH*math.cos(beta1), y1 - (1-last)*l*TRACK_WIDTH*math.sin(beta1)) # The first points will be the same
-                        road1_r = (x1 + (1-last)*r*TRACK_WIDTH*math.cos(beta1), y1 + (1-last)*r*TRACK_WIDTH*math.sin(beta1)) # The first points will be the same
+                    vertices = [road1_l, road1_r, road2_r, road2_l]
 
-                        # Get the closest point to a line make by the continuing trend of the original road points, the points will be the points 
-                        # under a radius r from line to avoid taking points far away in the other extreme of the track
-                        # Remember the distance from a point p3 to a line p1,p2 is d = norm(np.cross(p2-p1, p1-p3))/norm(p2-p1)
-                        # p1=(x1,y1)+sin/cos, p2=(x2,y2)+sin/cos, p3=points in poly
-                        if self.info[j]['end']:
-                            p1 = road1_l
-                            p2 = road2_l
+                    if self.info[j]['end'] == True or self.info[j]['start'] == True:
+
+                        points = [] # to store the new points
+                        p3 = [] # in order to save all points 3 to create joints
+                        for i in [0,1]: # because there are two point to do
+                            # Get the closest point to a line make by the continuing trend of the original road points, the points will be the points 
+                            # under a radius r from line to avoid taking points far away in the other extreme of the track
+                            # Remember the distance from a point p3 to a line p1,p2 is d = norm(np.cross(p2-p1, p1-p3))/norm(p2-p1)
+                            # p1=(x1,y1)+sin/cos, p2=(x2,y2)+sin/cos, p3=points in poly
+                            if self.info[j]['end']:
+                                p1 = road1_l if i == 0 else road1_r
+                                p2 = road2_l if i == 0 else road2_r
+                            else:
+                                p1 = road1_l if i == 0 else road1_r
+                                p2 = road2_l if i == 0 else road2_r
+
+                            if len(p3) == 0:
+                                max_idx = sum(sum(self.info[self.info['track'] == 0]['lanes'],[])) # this will work because only seconday tracks have ends
+                                p3_org = sum([x[0] for x in self.road_poly[:max_idx]],[])
+                                # filter p3 by distance to p1 < TRACK_WIDTH*2
+                                distance = TRACK_WIDTH*2
+                                while len(p3) == 0 and distance < PLAYFIELD:
+                                    close = np.where(np.linalg.norm(np.subtract(p3_org,p1),axis=1) <= distance)[0]
+                                    p3 = [p3_org[i] for i in close]
+                                    distance += TRACK_WIDTH
+
+                            if len(p3) == 0:
+                                raise RuntimeError('p3 lenght is zero')
+
+                            d = (np.cross(np.subtract(p2,p1),np.subtract(p1,p3)))**2/np.linalg.norm(np.subtract(p2,p1))
+                            points.append(p3[d.argmin()])
+
+                        if self.info[j]['start']:
+                            vertices = [points[0], points[1], road1_r, road1_l]
                         else:
-                            p1 = 2
-                            p2 = 2
-
-                        max_idx = len(self.tracks[0]) # this will work because only seconday tracks have ends
-                        if len(p3) == 0:
-                            p3 = sum([x[0] for x in self.road_poly[:max_idx]],[])
-
-                            # filter p3 by distance to p1 < TRACK_WIDTH*2
-
-                        set_trace() # Check if d is correctly contructed
-                        d = np.linalg.norm(np.cross(p2-p1,p1-p3))/np.linalg.norm(p2-p1)
-
-
-                        road2_l = (x2 - (1-first)*l*TRACK_WIDTH*math.cos(beta2), y2 - (1-first)*l*TRACK_WIDTH*math.sin(beta2)) # Depends on closest point
-                        road2_r = (x2 + (1-first)*r*TRACK_WIDTH*math.cos(beta2), y2 + (1-first)*r*TRACK_WIDTH*math.sin(beta2)) # Depends on closest point
-
+                            vertices = [road2_r, road2_l, points[0], points[1]]
+                        joint = True
 
                     t = self.world.CreateStaticBody( fixtures = fixtureDef(
-                        shape=polygonShape(vertices=[road1_l, road1_r, road2_r, road2_l])
+                        shape=polygonShape(vertices=vertices)
                         ))
                     t.userData = t
-                    t.obstacle = obstacle
                     c = 0.01*(i%3)
-                    t.color = [ROAD_COLOR[0], ROAD_COLOR[1], ROAD_COLOR[2]]
+                    t.color = [ROAD_COLOR[0], ROAD_COLOR[1], ROAD_COLOR[2]] if not joint else [1,1,1]
                     t.road_visited = False
                     t.road_friction = 1.0
                     t.fixtures[0].sensor = True
-                    self.road_poly.append(( [road1_l, road1_r, road2_r, road2_l], t.color ))
+                    self.road_poly.append(( vertices, t.color ))
                     self.road.append(t)
-
-                    # Adding obstacles
-                    if obstacle == 1:
-                        x = (x1+x2)/2
-                        y = (y1+y2)/2 + TRACK_WIDTH*math.sin(beta1)/2
-                        l1 = (x+0.1, y+0.4)
-                        r1 = (x-0.1, y+0.4)
-                        l2 = (x-0.4, y-0.4)
-                        r2 = (x+0.4, y-0.4)
-                        color = [1,0.5,0.3]
-                        self.road_poly.append(( [l1,r1,l2,r2], color ))
-                        l1 = (x+0.5, y-0.4)
-                        r1 = (x-0.5, y-0.4)
-                        l2 = (x-0.5, y-0.6)
-                        r2 = (x+0.5, y-0.6)
-                        color = [1,0.5,0.3]
-                        self.road_poly.append(( [l1,r1,l2,r2], color ))
 
         return True
 
@@ -520,6 +514,7 @@ class CarRacing(gym.Env, EzPickle):
         self.tile_visited_count = 0
         self.t = 0.0
         self.road_poly = []
+        self.border_poly = []
         self.track = []
         self.tracks = []
         self.human_render = False
@@ -779,6 +774,8 @@ class CarRacing(gym.Env, EzPickle):
             gl.glVertex3f(+2,+PLAYFIELD, 0)
             gl.glVertex3f(-2,+PLAYFIELD, 0)
             gl.glVertex3f(-2,-PLAYFIELD, 0)
+
+        self.render_debug_clues()
         
         gl.glEnd()
 
@@ -786,10 +783,16 @@ class CarRacing(gym.Env, EzPickle):
         pass        
 
     def render_debug_clues(self):
-        gl.glBegin(gl.GL_QUADS)
 
         if SHOW_ENDS_OF_TRACKS:
-            for x,y in self.track[np.logical_or(self.info['end'],self.info['start'])][:,1,2:]:
+            for x,y in self.track[self.info['end']][:,1,2:]:
+                gl.glColor4f(1, 0, 0, 1)
+                gl.glVertex3f(x+2,y+2,0)
+                gl.glVertex3f(x-2,y+2,0)
+                gl.glVertex3f(x-2,y-2,0)
+                gl.glVertex3f(x+2,y-2,0)
+        if SHOW_START_OF_TRACKS:
+            for x,y in self.track[self.info['start']][:,1,2:]:
                 gl.glColor4f(0, 1, 0, 1)
                 gl.glVertex3f(x+2,y+2,0)
                 gl.glVertex3f(x-2,y+2,0)
@@ -798,13 +801,11 @@ class CarRacing(gym.Env, EzPickle):
             
         if SHOW_INTERSECTIONS_POINTS:
             for x,y in self.track[self.info['intersection']][:,1,2:]:
-                gl.glColor4f(1, 0, 0, 1)
+                gl.glColor4f(1, 1, 0, 1)
                 gl.glVertex3f(x+1,y+1,0)
                 gl.glVertex3f(x-1,y+1,0)
                 gl.glVertex3f(x-1,y-1,0)
                 gl.glVertex3f(x+1,y-1,0)
-        gl.glEnd()
-
 
     def render_indicators(self, W, H):
         gl.glBegin(gl.GL_QUADS)
