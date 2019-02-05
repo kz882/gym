@@ -59,6 +59,7 @@ Returns: [beta, x, y]
 - [x] ~~Avoid change lanes after change lanes~~
 - [x] ~~Do NOT compare first tile of main track with last tile of `self.track`~~
 - [ ] Get rnd position, correct depnding on lane
+- [x] ~~Get correct intersections (all true positive)~~
 - [ ] Get tile with certain conditions
 
    - [ ] with certain angle (e.g. >40º)

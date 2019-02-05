@@ -320,57 +320,63 @@ class CarRacing(gym.Env, EzPickle):
                     # it is at the start
                     info[pos]['start'] = True
 
-        # Find if tiles in principal track are close to an intersection TODO NOT WORKING
-        intersections_idx = set()
-        for point in self.track[np.logical_or(info['end'],info['start'])][:,1,2:]:
-            intersections_idx.add(np.argmin(np.linalg.norm(self.tracks[0][:,1,2:] - point, axis=1)))
-        #info['intersection'][list(intersections_idx)] = True # TODO uncomment it 
-
-
         # Trying to get all intersections
-        intersections_alt = set()
+        intersections = set()
         for pos, point1 in enumerate(self.tracks[0][:,1,2:]):
             d = np.linalg.norm(self.track[len(self.tracks[0]):,1,2:]-point1,axis=1)
             if d.min() <= 2.05*TRACK_WIDTH:
-                intersections_alt.add(pos)
-        
-        track_len = len(self.tracks[0])
-        def backwards(lst):
-            if len(lst) == 1: return [lst[-1]]
-            else:
-                if lst[-1]-1 == len[-2]:
-                    return [lst[-1]]+backwards(lst[:-1])
-                else:
-                    return [lst[-1]]
+                intersections.add(pos)
 
-        def forward(lst):
-            if len(lst) == 1: return [lst[0]]
+        intersections = list(intersections)
+        intersections.sort()
+        track_len = len(self.tracks[0])
+        
+        def backwards():
+            me = intersections[-1]
+            del intersections[-1]
+            if len(intersections) == 0: return [me]
             else:
-                if lst[0]+1 == lst[1]:
-                    return [lst[0]]+forward(lst[1:])
+                if (me-1)%track_len == intersections[-1]:
+                    return [me]+backwards()
                 else:
-                    return [lst[0]]
+                    return [me]
+
+        def forward():
+            me = intersections[0]
+            del intersections[0]
+            if len(intersections) == 0: return [me]
+            else:
+                if (me+1)%track_len == intersections[0]:
+                    return [me]+forward()
+                else:
+                    return [me]
 
         groups = []
         tmp_lst = []
-        while len(intersections_alt) != 0:
-            idx = np.random.randint(0,len(intersections_alt))
-
-            if idx+1 < len(intersections_alt):
-                tmp_lst = tmp_lst + backwards(intersections_alt[:idx+1])
-
-            tmp_lst = tmp_lst + forward(intersections_alt[idx:])
-
-            for elem in tmp_lst:
-                intersections_alt.remove(elem)
+        while len(intersections) != 0:
+            me = intersections[0]
+            tmp_lst = tmp_lst + backwards()
+            if len(intersections) != 0:
+                if (me-1)%track_len == intersections[-1]:
+                    tmp_lst = tmp_lst + forward()
 
             groups.append(tmp_lst)
             tmp_lst = []
-        set_trace() # see if contains groups 
 
-        info['intersection'][list(intersections_alt)] = True
+        for group in groups:
+            min_dist_idx = None
+            min_dist     = 1e10
+            for idx in group:
+                d = np.linalg.norm(self.track[track_len:,1,2:] - self.track[idx,1,2:],axis=1)
+                if d.min() < min_dist:
+                    min_dist     = d.min()
+                    min_dist_idx = idx
+            
+            if min_dist <= TRACK_WIDTH:
+                intersections.append(min_dist_idx)
 
 
+        info['intersection'][list(intersections)] = True
 
         self.info = info
 
@@ -876,6 +882,7 @@ class CarRacing(gym.Env, EzPickle):
                 gl.glVertex3f(x-2,y+2,0)
                 gl.glVertex3f(x-2,y-2,0)
                 gl.glVertex3f(x+2,y-2,0)
+
         if SHOW_START_OF_TRACKS:
             for x,y in self.track[self.info['start']][:,1,2:]:
                 gl.glColor4f(0, 1, 0, 1)
