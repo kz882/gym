@@ -66,10 +66,11 @@ ROAD_COLOR = [0.4, 0.4, 0.4]
 # Debug actions
 SHOW_ENDS_OF_TRACKS       = 0       # Shows with red dots the end of track
 SHOW_START_OF_TRACKS      = 0       # Shows with green dots the end of track
-SHOW_INTERSECTIONS_POINTS = 1       # Shows with yellow dots the intersections of main track
+SHOW_INTERSECTIONS_POINTS = 0       # Shows with yellow dots the intersections of main track
+SHOW_XT_JUNCTIONS         = 1       # Shows in dark and light green the t and x junctions
 SHOW_JOINTS               = 0       # Shows joints in white
 SHOW_AXIS                 = 0       # Draws two lines where the x and y axis are
-ZOOM_OUT                  = 1       # Shows maps in general and does not do zoom
+ZOOM_OUT                  = 0       # Shows maps in general and does not do zoom
 if ZOOM_OUT: ZOOM         = 0.25    # Complementary to ZOOM_OUT
 
 class FrictionDetector(contactListener):
@@ -298,6 +299,8 @@ class CarRacing(gym.Env, EzPickle):
             ('end','bool'),
             ('begining', 'bool'),
             ('intersection', 'bool'),
+            ('t','bool'),
+            ('x','bool'),
             ('start','bool'),
             ('lanes',np.ndarray),
             ('obstacles',np.ndarray)])
@@ -307,7 +310,7 @@ class CarRacing(gym.Env, EzPickle):
 
         for i in range(1, len(self.tracks)): 
             track = self.tracks[i]
-            info[len(self.tracks[i-1])-1:len(self.tracks[i-1])+len(track)]['track'] = i
+            info[len(self.tracks[i-1]):len(self.tracks[i-1])+len(track)]['track'] = i # This wont work for num_tracks > 2
             for j in range(len(track)):
                 pos = j + len(self.tracks[i-1])
                 p = track[j]
@@ -375,8 +378,24 @@ class CarRacing(gym.Env, EzPickle):
             if min_dist <= TRACK_WIDTH:
                 intersections.append(min_dist_idx)
 
-
         info['intersection'][list(intersections)] = True
+
+        # Classifying intersections
+        # TODO do not consider intersections with close angles of +- pi/2
+        for idx in intersections:
+            point = self.track[idx,1,2:]
+            d = np.linalg.norm(self.track[:,1,2:]-point, axis=1)
+            argmin = d[info['track'] != 0].argmin()
+            filt = np.where(d < TRACK_WIDTH*2.5)
+            
+            # TODO ignore intersections with angles of pi/2
+
+            if info[filt]['start'].sum() - info[filt]['end'].sum() != 0:
+                info[idx]['t'] = True
+                info[argmin + track_len]['t'] = True                
+            else:
+                info[idx]['x'] = True
+                info[argmin + track_len]['x'] = True                
 
         self.info = info
 
@@ -440,11 +459,11 @@ class CarRacing(gym.Env, EzPickle):
         tracks = []
         for _ in range(self.num_tracks):
             track = self._get_track(12)
-            if not track: return track
+            if not track or len(track) == 0: return track
             tracks.append(track)
 
         self.tracks = tracks
-        self._remove_roads()
+        if self._remove_roads() == False: return False
 
         self.track  = np.concatenate(self.tracks)
 
@@ -806,9 +825,13 @@ class CarRacing(gym.Env, EzPickle):
 
             self.intersections = intersections
             
+            if len(track1) == 0 or len(track2) == 0:
+                return False
+
             self.tracks[0] = track1
             self.tracks[1] = track2
 
+            return True
 
     def _render_tiles(self):
         '''
@@ -890,10 +913,24 @@ class CarRacing(gym.Env, EzPickle):
                 gl.glVertex3f(x-2,y+2,0)
                 gl.glVertex3f(x-2,y-2,0)
                 gl.glVertex3f(x+2,y-2,0)
-            
+
         if SHOW_INTERSECTIONS_POINTS:
             for x,y in self.track[self.info['intersection']][:,1,2:]:
                 gl.glColor4f(1, 1, 0, 1)
+                gl.glVertex3f(x+1,y+1,0)
+                gl.glVertex3f(x-1,y+1,0)
+                gl.glVertex3f(x-1,y-1,0)
+                gl.glVertex3f(x+1,y-1,0)
+            
+        if SHOW_XT_JUNCTIONS:
+            for x,y in self.track[self.info['t']][:,1,2:]:
+                gl.glColor4f(0, 0.4, 0, 1)
+                gl.glVertex3f(x+1,y+1,0)
+                gl.glVertex3f(x-1,y+1,0)
+                gl.glVertex3f(x-1,y-1,0)
+                gl.glVertex3f(x+1,y-1,0)
+            for x,y in self.track[self.info['x']][:,1,2:]:
+                gl.glColor4f(6, 0.8, 0.18, 1)
                 gl.glVertex3f(x+1,y+1,0)
                 gl.glVertex3f(x-1,y+1,0)
                 gl.glVertex3f(x-1,y-1,0)
@@ -968,6 +1005,7 @@ if __name__=="__main__":
         if k==key.UP:    a[1] = 0
         if k==key.DOWN:  a[2] = 0
         if k==key.D:     set_trace()
+        if k==key.R:     env.reset()
     env = CarRacing()
     env.render()
     record_video = False

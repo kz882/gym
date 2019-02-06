@@ -10,6 +10,7 @@ This repo has improvements on the complexity for CarRacing-v1
 * Obstacles added
 * More control over the agent
 * Easy to modify the reward function
+* Control where to position the car and its speed
 
 Here some images of some changes:
 
@@ -60,6 +61,7 @@ Returns: [beta, x, y]
 - [x] ~~Do NOT compare first tile of main track with last tile of `self.track`~~
 - [ ] Get rnd position, correct depnding on lane
 - [x] ~~Get correct intersections (all true positive)~~
+- [x] ~~Differentiate intersections~~
 - [ ] Get tile with certain conditions
 
    - [ ] with certain angle (e.g. >40º)
