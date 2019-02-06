@@ -182,6 +182,9 @@ class CarRacing(gym.Env, EzPickle):
         self.car.destroy()
 
     def place_agent(self, position):
+        '''
+        position = [beta,x,y]
+        '''
         self.car.destroy()
         self.car = Car(self.world, *position)
 
@@ -302,6 +305,7 @@ class CarRacing(gym.Env, EzPickle):
             ('t','bool'),
             ('x','bool'),
             ('start','bool'),
+            ('used','bool'),
             ('lanes',np.ndarray),
             ('obstacles',np.ndarray)])
 
@@ -381,7 +385,6 @@ class CarRacing(gym.Env, EzPickle):
         info['intersection'][list(intersections)] = True
 
         # Classifying intersections
-        # TODO do not consider intersections with close angles of +- pi/2
         for idx in intersections:
             point = self.track[idx,1,2:]
             d = np.linalg.norm(self.track[:,1,2:]-point, axis=1)
@@ -981,6 +984,13 @@ class CarRacing(gym.Env, EzPickle):
         Returns: [beta, x, y]
         '''
         idx = self.np_random.randint(0, len(self.track))
+        _,beta,x,y = self._get_rnd_position_inside_lane(idx,border)
+        return [beta, x, y]
+
+    def _get_rnd_position_inside_lane(self,idx,border=True):
+        '''
+        idx of tile
+        '''
         alpha, beta, x, y = self.track[idx,1,:]
         r,l = True, True
         if self.num_lanes > 1:
@@ -990,8 +1000,24 @@ class CarRacing(gym.Env, EzPickle):
         h = np.random.uniform(from_val,to_val) 
         x += h*math.cos(alpha)
         y += h*math.sin(alpha)
-        return [beta, x, y]
+        return [alpha,beta,x,y]
 
+    def get_position_near_junction(self,type_junction, tiles_before):
+        '''
+        type_junction (str) : 't' or 'x' so far
+        tiles_before  (int) : number of tiles before the t junction, can be
+                              negative as well
+        '''
+        if (self.info[type_junction] == True).sum() > 0:
+            idx = np.random.choice(np.where(self.info[type_junction] == True)[0])
+            idx_relative = idx - (self.info['track'] < self.info[idx]['track']).sum()
+            track = self.track[self.info['track'] == self.info[idx]['track']]
+            idx_general = (idx_relative + tiles_before)%len(track) + (self.info['track'] < self.info[idx]['track']).sum()
+            _, beta, x, y = self._get_rnd_position_inside_lane(idx_general)
+            if tiles_before > 0: beta += math.pi
+            return [beta,x,y]
+        else:
+            return False
 
 if __name__=="__main__":
     from pyglet.window import key

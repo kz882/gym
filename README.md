@@ -56,6 +56,8 @@ Returns: [beta, x, y]
 
 ## To Improve (by importance)
 
+- [x] ~~Set speed of car~~
+- [x] ~~Set position of car~~
 - [x] ~~Add small distance to d to joing tracks, bigger than x and greater than 50~~
 - [x] ~~Avoid change lanes after change lanes~~
 - [x] ~~Do NOT compare first tile of main track with last tile of `self.track`~~
@@ -66,12 +68,14 @@ Returns: [beta, x, y]
 - [ ] Get tile with certain conditions:
 
    - [ ] with certain angle (e.g. >40º)
-   - [ ] In an T-junction
-   - [ ] in an X-junction
+   - [x] ~~In an T-junction~~
+   - [x] ~~In an X-junction~~
    - [ ] With obstacle in front
 
 - [ ] Get outside position
 - [ ] Detect change of line
+- [ ] Differentiate y from t junctions
+- [ ] Differentiate x from merge juntions
 - [ ] Add road lines
 - [ ] Change car when not racing
  
