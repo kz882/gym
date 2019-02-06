@@ -59,10 +59,11 @@ Returns: [beta, x, y]
 - [x] ~~Add small distance to d to joing tracks, bigger than x and greater than 50~~
 - [x] ~~Avoid change lanes after change lanes~~
 - [x] ~~Do NOT compare first tile of main track with last tile of `self.track`~~
-- [ ] Get rnd position, correct depnding on lane
+- [x] ~~Get rnd position in track~~
 - [x] ~~Get correct intersections (all true positive)~~
 - [x] ~~Differentiate intersections~~
-- [ ] Get tile with certain conditions
+- [ ] Add obstacles
+- [ ] Get tile with certain conditions:
 
    - [ ] with certain angle (e.g. >40º)
    - [ ] In an T-junction
@@ -71,7 +72,6 @@ Returns: [beta, x, y]
 
 - [ ] Get outside position
 - [ ] Detect change of line
-- [ ] Add obstacles
 - [ ] Add road lines
 - [ ] Change car when not racing
  

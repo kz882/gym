@@ -982,10 +982,14 @@ class CarRacing(gym.Env, EzPickle):
         '''
         idx = self.np_random.randint(0, len(self.track))
         alpha, beta, x, y = self.track[idx,1,:]
-        r,l = self.info[idx]['lanes']
-        x_from = -TRACK_WIDTH*l+math.cos(alpha)*border*TRACK_WIDTH/3.5
-        x_to   = +TRACK_WIDTH*r-math.sin(alpha)*border*TRACK_WIDTH/3.5
-        x += np.random.uniform(x_from,x_to) 
+        r,l = True, True
+        if self.num_lanes > 1:
+            l,r = self.info[idx]['lanes']
+        from_val = -TRACK_WIDTH*l + border*TRACK_WIDTH/2
+        to_val   = +TRACK_WIDTH*r - border*TRACK_WIDTH/2
+        h = np.random.uniform(from_val,to_val) 
+        x += h*math.cos(alpha)
+        y += h*math.sin(alpha)
         return [beta, x, y]
 
 
