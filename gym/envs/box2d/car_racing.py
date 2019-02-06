@@ -306,6 +306,7 @@ class CarRacing(gym.Env, EzPickle):
             ('x','bool'),
             ('start','bool'),
             ('used','bool'),
+            ('angle', 'float16'),
             ('lanes',np.ndarray),
             ('obstacles',np.ndarray)])
 
@@ -399,6 +400,17 @@ class CarRacing(gym.Env, EzPickle):
             else:
                 info[idx]['x'] = True
                 info[argmin + track_len]['x'] = True                
+
+        pos = 0
+        m = 5
+        for track in self.tracks:
+            for i,tile in enumerate(track):
+                # get last and next n tiles
+                idxs = [(i+j)%len(track) for j in range(-m,m)]
+                avg = (track[idxs,0,1] - track[idxs,1,1]).mean()
+                # average the difference of their angles
+                info[pos]['angle'] = avg
+                pos +=1
 
         self.info = info
 
