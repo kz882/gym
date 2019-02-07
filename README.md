@@ -74,6 +74,9 @@ Returns: [beta, x, y]
 
 - [ ] Get outside position
 - [ ] Detect change of line
+
+low priority:
+
 - [ ] Differentiate y from t junctions
 - [ ] Differentiate x from merge juntions
 - [ ] Add road lines
