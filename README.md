@@ -66,7 +66,7 @@ Returns: [beta, x, y]
 - [x] ~~Get rnd position in track~~
 - [x] ~~Get correct intersections (all true positive)~~
 - [x] ~~Differentiate intersections~~
-- [ ] Add obstacles
+- [x] ~~Add obstacles~~
 - [ ] Get tile with certain conditions:
 
    - [x] ~~With certain angle (e.g. >40º <- that is possible using `info['angle']` but it is not recommended, use get_rnd_tile_by_type_angle)~~

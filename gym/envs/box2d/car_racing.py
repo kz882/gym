@@ -64,13 +64,18 @@ NUM_TILES_FOR_AVG = 5 # The number of tiles before and after to takeinto account
 
 ROAD_COLOR = [0.4, 0.4, 0.4]
 
+OBSTACLE_NAME = 'obstacle'
+TILE_NAME     = 'tile'
+BORDER_NAME   = 'border'
+GRASS_NAME    = 'grass'
+
 # Debug actions
 SHOW_ENDS_OF_TRACKS       = 0       # Shows with red dots the end of track
 SHOW_START_OF_TRACKS      = 0       # Shows with green dots the end of track
-SHOW_INTERSECTIONS_POINTS = 1       # Shows with yellow dots the intersections of main track
-SHOW_XT_JUNCTIONS         = 1       # Shows in dark and light green the t and x junctions
+SHOW_INTERSECTIONS_POINTS = 0       # Shows with yellow dots the intersections of main track
+SHOW_XT_JUNCTIONS         = 0       # Shows in dark and light green the t and x junctions
 SHOW_JOINTS               = 0       # Shows joints in white
-SHOW_TURNS                = 1       # Shows the 10 hardest turns
+SHOW_TURNS                = 0       # Shows the 10 hardest turns
 SHOW_AXIS                 = 0       # Draws two lines where the x and y axis are
 ZOOM_OUT                  = 1       # Shows maps in general and does not do zoom
 if ZOOM_OUT: ZOOM         = 0.25    # Complementary to ZOOM_OUT
@@ -96,20 +101,24 @@ class FrictionDetector(contactListener):
             obj  = u1
         if not tile: return
 
-        tile.color[0] = ROAD_COLOR[0]
-        tile.color[1] = ROAD_COLOR[1]
-        tile.color[2] = ROAD_COLOR[2]
+        if tile.typename != OBSTACLE_NAME:
+            tile.color[0] = ROAD_COLOR[0]
+            tile.color[1] = ROAD_COLOR[1]
+            tile.color[2] = ROAD_COLOR[2]
         if not obj or "tiles" not in obj.__dict__: return
-        if begin:
-            obj.tiles.add(tile)
-            #print tile.road_friction, "ADD", len(obj.tiles)
-            if not tile.road_visited:
-                tile.road_visited = True
-                self.env.reward += 1000.0/len(self.env.track)
-                self.env.tile_visited_count += 1
+        if tile.typename == OBSTACLE_NAME:
+            self.env.reward -= 10
         else:
-            obj.tiles.remove(tile)
-            #print tile.road_friction, "DEL", len(obj.tiles) -- should delete to zero when on grass (this works)
+            if begin:
+                    obj.tiles.add(tile)
+                    #print tile.road_friction, "ADD", len(obj.tiles)
+                    if not tile.road_visited:
+                        tile.road_visited = True
+                        self.env.reward += 1000.0/len(self.env.track)
+                        self.env.tile_visited_count += 1
+            else:
+                obj.tiles.remove(tile)
+                #print tile.road_friction, "DEL", len(obj.tiles) -- should delete to zero when on grass (this works)
 
 class CarRacing(gym.Env, EzPickle):
     metadata = {
@@ -143,13 +152,13 @@ class CarRacing(gym.Env, EzPickle):
         self.num_lanes_changes = 3   # Number of points where lanes change from 1 lane to two and viceversa 
         self.num_tracks        = 2   # Number of tracks, this control the complexity of the map
         self.num_lanes         = 2   # Number of lanes, 1 or 2
-        self.prob_obstacle     = 0.1 # Percentage of finding a obstacle in a point of the row
+        self.num_obstacles     = 10  # Number of obstacles in the track 
         self.max_single_lane   = 50  # Max number of tiles of a single lane road
 
         self.action_space = spaces.Box( np.array([-1,0,0]), np.array([+1,+1,+1]), dtype=np.float32)  # steer, gas, brake
         self.observation_space = spaces.Box(low=0, high=255, shape=(STATE_H, STATE_W, 3), dtype=np.uint8)
 
-    def set_config(self, num_tracks=2, num_lanes=2, num_lanes_changes=2, prob_obstacle=0.1):
+    def set_config(self, num_tracks=2, num_lanes=2, num_lanes_changes=2, num_obstacles=10):
         '''
         Controls some attributes of the game, such as the number of tracks (num_tracks)
         which is a proxy to control the complexity of map, the number of lanes (num_lanes_changes) and
@@ -161,14 +170,14 @@ class CarRacing(gym.Env, EzPickle):
         num_lanes_changes (int 2)    Number of changes from 2 to 1 or viceversa, this 
                                      is ultimately transform as a probability over the
                                      total number of points in track
-        prob_obstacle     (foat 0.1) The probability of finding an obstacle a point of 
+        num_obstacles     (foat 0.1) The probability of finding an obstacle a point of 
                                      the track, [0,1]
         max_single_lane   (int 50)   The maximum number of tiles that a single lane road
                                      can have before becoming two lanes again
         '''
         self.num_lanes         = num_lanes  if num_lanes  > 0 and num_lanes  <= 2 else self.num_lanes
         self.num_tracks        = num_tracks if num_tracks > 0 and num_tracks <= 2 else self.num_tracks
-        self.prob_obstacle     = prob_obstacle if prob_obstacle >= 0 and prob_obstacle <= 1 else self.prob_obstacle
+        self.num_obstacles     = num_obstacles if num_obstacles >= 0 else self.num_obstacles
         self.num_lanes_changes = num_lanes_changes if num_lanes_changes >= 0 else self.num_lanes_changes
         self.max_single_lane   = max_single_lane if max_single_lane > 10 else self.max_single_lane
 
@@ -292,6 +301,40 @@ class CarRacing(gym.Env, EzPickle):
 
         track     = [[track[i-1],track[i]] for i in range(len(track))]
         return track
+
+    def _create_obstacles(self):
+        # Get random tile, with replacement
+        # Create obstacle (red rectangle of random width and position in tile)
+        tiles_idx = np.random.choice(range(len(self.track)), self.num_obstacles, replace=False)
+        for idx in tiles_idx:
+            alpha, beta, x,y = self._get_rnd_position_inside_lane(idx)
+
+            width = abs(np.random.normal(1)*TRACK_WIDTH/4)
+
+            p1 = (x - width*math.cos(beta) + TRACK_DETAIL_STEP/2*math.sin(beta),
+                  y - width*math.sin(beta) - TRACK_DETAIL_STEP/2*math.cos(beta))
+            p2 = (x + width*math.cos(beta) + TRACK_DETAIL_STEP/2*math.sin(beta),
+                  y + width*math.sin(beta) - TRACK_DETAIL_STEP/2*math.cos(beta))
+            p3 = (x + width*math.cos(beta) - TRACK_DETAIL_STEP/2*math.sin(beta),
+                  y + width*math.sin(beta) + TRACK_DETAIL_STEP/2*math.cos(beta))
+            p4 = (x - width*math.cos(beta) - TRACK_DETAIL_STEP/2*math.sin(beta),
+                  y - width*math.sin(beta) + TRACK_DETAIL_STEP/2*math.cos(beta))
+
+            vertices = [p1,p2,p3,p4]
+
+            # Add it to obstacles
+            # Add it to poly_obstacles
+            t = self.world.CreateStaticBody( fixtures = fixtureDef(
+                shape=polygonShape(vertices=vertices)
+                ))
+            t.userData = t
+            t.color = [0.86,0.08,0.23] 
+            t.road_friction = 1.0
+            t.road_visited  = True
+            t.typename          = OBSTACLE_NAME
+            t.fixtures[0].sensor = True
+            self.obstacles_poly.append(( vertices, t.color ))
+            self.road.append(t)
 
     def _create_info(self):
         '''
@@ -553,7 +596,7 @@ class CarRacing(gym.Env, EzPickle):
 
         # Create tiles
         for j in range(len(self.track)):
-            obstacle = np.random.binomial(1,self.prob_obstacle)
+            obstacle = np.random.binomial(1,0)
             alpha1, beta1, x1, y1 = self.track[j][1]
             alpha2, beta2, x2, y2 = self.track[j][0]
 
@@ -641,10 +684,13 @@ class CarRacing(gym.Env, EzPickle):
                     else:
                         t.color = [ROAD_COLOR[0], ROAD_COLOR[1], ROAD_COLOR[2]] 
                     t.road_visited = False
+                    t.typename = TILE_NAME
                     t.road_friction = 1.0
                     t.fixtures[0].sensor = True
                     self.road_poly.append(( vertices, t.color ))
                     self.road.append(t)
+
+        self._create_obstacles()
 
         return True
 
@@ -661,6 +707,7 @@ class CarRacing(gym.Env, EzPickle):
         self.t = 0.0
         self.road_poly = []
         self.border_poly = []
+        self.obstacles_poly = []
         self.track = []
         self.tracks = []
         self.human_render = False
@@ -879,6 +926,16 @@ class CarRacing(gym.Env, EzPickle):
             for p in poly:
                 gl.glVertex3f(p[0], p[1], 0)
 
+    def _render_obstacles(self):
+        '''
+        Can only be called inside a glBegin
+        '''
+        # drawing road old way
+        for poly, color in self.obstacles_poly:
+            gl.glColor4f(color[0], color[1], color[2], 1)
+            for p in poly:
+                gl.glVertex3f(p[0], p[1], 0)
+
     def render_road(self):
         gl.glBegin(gl.GL_QUADS)
         gl.glColor4f(0.4, 0.8, 0.4, 1.0)
@@ -896,19 +953,21 @@ class CarRacing(gym.Env, EzPickle):
                 gl.glVertex3f(k*x + k, k*y + k, 0)
 
         self._render_tiles()
+        self._render_obstacles()
 
         # drawing angles of old config, the 
         # black line is the angle (NOT WORKING)
-        for track in []:#self.tracks:
-            for point1, point2 in track:
-                alpha1,beta1,x1,y1 = point1
-                beta1 = alpha1
+        if False:
+            for track in self.tracks:
+                for point1, point2 in track:
+                    alpha1,beta1,x1,y1 = point1
+                    beta1 = alpha1
 
-                gl.glColor4f(0, 0, 0, 0)
-                gl.glVertex3f(x1+2,y1, 0)
-                gl.glVertex3f(x1+2+math.cos(beta1)*2,y1+math.sin(beta1)*2, 0)
-                gl.glVertex3f(x1-2+math.cos(beta1)*2,y1+math.sin(beta1)*2, 0)
-                gl.glVertex3f(x1-2,y1, 0)
+                    gl.glColor4f(0, 0, 0, 0)
+                    gl.glVertex3f(x1+2,y1, 0)
+                    gl.glVertex3f(x1+2+math.cos(beta1)*2,y1+math.sin(beta1)*2, 0)
+                    gl.glVertex3f(x1-2+math.cos(beta1)*2,y1+math.sin(beta1)*2, 0)
+                    gl.glVertex3f(x1-2,y1, 0)
 
         # Ploting axis
         if SHOW_AXIS:
@@ -1060,6 +1119,12 @@ class CarRacing(gym.Env, EzPickle):
         else:
             return False
 
+    def change_zoom(self):
+        global ZOOM_OUT, ZOOM
+        ZOOM_OUT = (ZOOM_OUT+1)%2
+        if ZOOM_OUT: ZOOM = 0.25
+        else:        ZOOM = 2.7
+
 if __name__=="__main__":
     from pyglet.window import key
     a = np.array( [0.0, 0.0, 0.0] )
@@ -1077,6 +1142,7 @@ if __name__=="__main__":
         if k==key.DOWN:  a[2] = 0
         if k==key.D:     set_trace()
         if k==key.R:     env.reset()
+        if k==key.Z:     env.change_zoom()
     env = CarRacing()
     env.render()
     record_video = False
