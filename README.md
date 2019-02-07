@@ -67,7 +67,7 @@ Returns: [beta, x, y]
 - [ ] Add obstacles
 - [ ] Get tile with certain conditions:
 
-   - [ ] with certain angle (e.g. >40º)
+   - [x] ~~With certain angle (e.g. >40º <- that is possible using `info['angle']` but it is not recommended, use get_rnd_tile_by_type_angle)~~
    - [x] ~~In an T-junction~~
    - [x] ~~In an X-junction~~
    - [ ] With obstacle in front

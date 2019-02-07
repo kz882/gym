@@ -60,17 +60,19 @@ TRACK_TURN_RATE = 0.31
 TRACK_WIDTH = 40/SCALE
 BORDER = 8/SCALE
 BORDER_MIN_COUNT = 4
+NUM_TILES_FOR_AVG = 5 # The number of tiles before and after to takeinto account for angle
 
 ROAD_COLOR = [0.4, 0.4, 0.4]
 
 # Debug actions
 SHOW_ENDS_OF_TRACKS       = 0       # Shows with red dots the end of track
 SHOW_START_OF_TRACKS      = 0       # Shows with green dots the end of track
-SHOW_INTERSECTIONS_POINTS = 0       # Shows with yellow dots the intersections of main track
+SHOW_INTERSECTIONS_POINTS = 1       # Shows with yellow dots the intersections of main track
 SHOW_XT_JUNCTIONS         = 1       # Shows in dark and light green the t and x junctions
 SHOW_JOINTS               = 0       # Shows joints in white
+SHOW_TURNS                = 1       # Shows the 10 hardest turns
 SHOW_AXIS                 = 0       # Draws two lines where the x and y axis are
-ZOOM_OUT                  = 0       # Shows maps in general and does not do zoom
+ZOOM_OUT                  = 1       # Shows maps in general and does not do zoom
 if ZOOM_OUT: ZOOM         = 0.25    # Complementary to ZOOM_OUT
 
 class FrictionDetector(contactListener):
@@ -307,8 +309,11 @@ class CarRacing(gym.Env, EzPickle):
             ('start','bool'),
             ('used','bool'),
             ('angle', 'float16'),
+            ('ang_class','float16'),
             ('lanes',np.ndarray),
             ('obstacles',np.ndarray)])
+
+        info['ang_class'] = np.nan
 
         for i in range(len(info)):
             info[i]['lanes'] = [True, True]
@@ -401,17 +406,33 @@ class CarRacing(gym.Env, EzPickle):
                 info[idx]['x'] = True
                 info[argmin + track_len]['x'] = True                
 
-        pos = 0
-        m = 5
-        for track in self.tracks:
-            for i,tile in enumerate(track):
-                # get last and next n tiles
-                idxs = [(i+j)%len(track) for j in range(-m,m)]
-                avg = (track[idxs,0,1] - track[idxs,1,1]).mean()
-                # average the difference of their angles
-                info[pos]['angle'] = avg
-                pos +=1
+        # Getting angles of curves
+        max_idxs = []
+        self.track[:,0,1] = np.mod(self.track[:,0,1], 2*math.pi)
+        self.track[:,1,1] = np.mod(self.track[:,1,1], 2*math.pi)
+        for num_track in range(self.num_tracks):
 
+            track = self.tracks[num_track]
+            angles = track[:,0,1] - track[:,1,1]
+            inters = np.logical_or(info[info['track'] == num_track]['t'],info[info['track'] == num_track]['x'])
+
+            track_len_compl = (info['track'] < num_track).sum()
+            track_len       = len(track)
+
+            while np.abs(angles).max() != 0.0:
+                max_rel_idx = np.abs(angles).argmax()
+
+                rel_idxs    = [(max_rel_idx + j)%track_len for j in range(-NUM_TILES_FOR_AVG  ,NUM_TILES_FOR_AVG  ) ]
+                idxs_safety = [(max_rel_idx + j)%track_len for j in range(-NUM_TILES_FOR_AVG*2,NUM_TILES_FOR_AVG*2) ]
+                
+                if (inters[idxs_safety] == True).sum() == 0:
+                    max_idxs.append(max_rel_idx + track_len_compl)
+                    angles[rel_idxs] = 0.0
+                else:
+                    angles[max_rel_idx] = 0.0
+
+        info['angle'][max_idxs] = self.track[max_idxs,0,1] - self.track[max_idxs,1,1]
+        
         self.info = info
 
     def _set_lanes(self):
@@ -946,6 +967,14 @@ class CarRacing(gym.Env, EzPickle):
                 gl.glVertex3f(x+1,y-1,0)
             for x,y in self.track[self.info['x']][:,1,2:]:
                 gl.glColor4f(6, 0.8, 0.18, 1)
+                gl.glVertex3f(x+1,y+1,0)
+                gl.glVertex3f(x-1,y+1,0)
+                gl.glVertex3f(x-1,y-1,0)
+                gl.glVertex3f(x+1,y-1,0)
+
+        if SHOW_TURNS:
+            for x,y in self.track[np.abs(self.info['angle']).argsort()[-10:]][:,1,2:]:
+                gl.glColor4f(1, 0, 0, 1)
                 gl.glVertex3f(x+1,y+1,0)
                 gl.glVertex3f(x-1,y+1,0)
                 gl.glVertex3f(x-1,y-1,0)
