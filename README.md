@@ -56,6 +56,8 @@ Returns: [beta, x, y]
 
 ## To Improve (by importance)
 
+### high priority: 
+
 - [x] ~~Set speed of car~~
 - [x] ~~Set position of car~~
 - [x] ~~Add small distance to d to joing tracks, bigger than x and greater than 50~~
@@ -75,7 +77,7 @@ Returns: [beta, x, y]
 - [ ] Get outside position
 - [ ] Detect change of line
 
-low priority:
+### low priority:
 
 - [ ] Differentiate y from t junctions
 - [ ] Differentiate x from merge juntions
