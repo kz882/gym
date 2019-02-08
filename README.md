@@ -72,7 +72,7 @@ Returns: [beta, x, y]
    - [x] ~~With certain angle (e.g. >40º <- that is possible using `info['angle']` but it is not recommended, use get_rnd_tile_by_type_angle)~~
    - [x] ~~In an T-junction~~
    - [x] ~~In an X-junction~~
-   - [ ] With obstacle in front
+   - [ ] With obstacle in front (DOES NOT MAKE SENSE TO IMPLEMENT RIGHT NOW)
 
 - [ ] Get outside position
 - [ ] Detect change of line
