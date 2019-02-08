@@ -774,16 +774,14 @@ class CarRacing(gym.Env, EzPickle):
         if np.linalg.norm(vel) > 0.5:
             angle = math.atan2(vel[0], vel[1])
         self.transform.set_scale(zoom, zoom)
-        # TODO to screenshots read comments below
         if ZOOM_OUT:
             self.transform.set_translation(WINDOW_W/2, WINDOW_H/2)
-            #self.transform.set_rotation(angle) # get screenshots commet this out
+            self.transform.set_rotation(0) 
         else:
             self.transform.set_translation(
-                # to get nice screenshots use WINDOW_X/2
                 WINDOW_W/2 - (scroll_x*zoom*math.cos(angle) - scroll_y*zoom*math.sin(angle)), 
                 WINDOW_H/4 - (scroll_x*zoom*math.sin(angle) + scroll_y*zoom*math.cos(angle)) )
-            self.transform.set_rotation(angle) # get screenshots commet this out
+            self.transform.set_rotation(angle)
 
         self.car.draw(self.viewer, mode!="state_pixels")
 
@@ -1118,6 +1116,27 @@ class CarRacing(gym.Env, EzPickle):
             return [beta,x,y]
         else:
             return False
+
+    def get_position_outside(self, distance):
+        '''
+        Returns a random position outside the track with random angle 
+
+        bear in mind that distance can be negative
+        '''
+        idx   = np.random.randint(0,len(self.track))
+        angle = np.random.uniform(0,2*math.pi)
+        _,beta,x,y = self.track[idx,1,:]
+        r,l = True, True
+        if self.num_lanes > 1:
+            l,r = self.info[idx]['lanes']
+        if distance > 0:
+            x = x + (r*TRACK_WIDTH + distance)*math.cos(beta)
+            y = y + (r*TRACK_WIDTH + distance)*math.sin(beta)
+        else:
+            x = x - (l*TRACK_WIDTH + abs(distance))*math.cos(beta)
+            y = y - (l*TRACK_WIDTH + abs(distance))*math.sin(beta)
+
+        return [angle,x,y]
 
     def change_zoom(self):
         global ZOOM_OUT, ZOOM

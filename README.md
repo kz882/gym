@@ -1,7 +1,7 @@
 
 # OpenAi Gym with CarRacing-v1 (unofficial)
 
-This repo has improvements on the complexity for CarRacing-v1
+This repo has improvements on the complexity for CarRacing-v1, take into account that when the track is more complex, it is also slower.
 
 ## Improved
 
@@ -11,6 +11,7 @@ This repo has improvements on the complexity for CarRacing-v1
 * More control over the agent
 * Easy to modify the reward function
 * Control where to position the car and its speed
+* Extra controlls
 
 Here some images of some changes:
 
@@ -54,9 +55,26 @@ This are some improvements of the environment, this allows configures each exper
 Returns: [beta, x, y]
 
 
+### Extra controls
+
+During the game, calling `python gym/envs/box2d/car_racing.py` use the following keys to do certain stuff
+
+* `D`: To enter python debug mode
+* `Z`: Zoom in or out
+* `R`: Get new track `reset`
+
+
 ## To Improve (by importance)
 
 ### high priority: 
+
+- [ ] Detect change of line (DOES NOT MAKE SENSE TO IMPLEMENT RIGHT NOW)
+- [ ] Get tile with certain conditions:
+
+   - [x] ~~With certain angle (e.g. >40º <- that is possible using `info['angle']` but it is not recommended, use get_rnd_tile_by_type_angle)~~
+   - [x] ~~In an T-junction~~
+   - [x] ~~In an X-junction~~
+   - [ ] With obstacle in front (DOES NOT MAKE SENSE TO IMPLEMENT RIGHT NOW)
 
 - [x] ~~Set speed of car~~
 - [x] ~~Set position of car~~
@@ -67,15 +85,7 @@ Returns: [beta, x, y]
 - [x] ~~Get correct intersections (all true positive)~~
 - [x] ~~Differentiate intersections~~
 - [x] ~~Add obstacles~~
-- [ ] Get tile with certain conditions:
-
-   - [x] ~~With certain angle (e.g. >40º <- that is possible using `info['angle']` but it is not recommended, use get_rnd_tile_by_type_angle)~~
-   - [x] ~~In an T-junction~~
-   - [x] ~~In an X-junction~~
-   - [ ] With obstacle in front (DOES NOT MAKE SENSE TO IMPLEMENT RIGHT NOW)
-
-- [ ] Get outside position
-- [ ] Detect change of line
+- [x] ~~Get outside position (use `get_position_outside(d)`)~~
 
 ### low priority:
 
