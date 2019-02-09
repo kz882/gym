@@ -92,6 +92,7 @@ During the game, calling `python gym/envs/box2d/car_racing.py` use the following
 - [ ] Differentiate y from t junctions
 - [ ] Differentiate x from merge juntions
 - [ ] Add road lines
+- [ ] Fix joints of roads in some cases
 - [ ] Change car when not racing
  
 ---
