@@ -12,6 +12,14 @@ This repo has improvements on the complexity for CarRacing-v1, take into account
 * Easy to modify the reward function
 * Control where to position the car and its speed
 * Extra controlls
+* Meta information about the track
+
+   * where are the intersections
+   * Where are the T-junctions
+   * Where are the X-junctions
+   * The angle of the curve
+   * Positions near intersections, curves, or obstacles
+* Function to apply (random) force to the car, to simulate noise or malfunctioning
 
 Here some images of some changes:
 
@@ -31,7 +39,15 @@ you can have even more complex maps
 ![map](img/map3.png)
 ![map](img/map4.png)
 
-more complex maps are possible but not recomended
+even more complex maps are possible but not recomended. Part of the complexity of the maps comes from the change of the number of lanes (which is a parameter) some screenshots of it:
+
+![map](img/lanes1.png)
+![map](img/lanes2.png)
+
+another source of complexity is the obstacles (shown below) which can be configured (the number of obstacle in each track), but to modify their shape and the negative value (in the reward function) would be straight forward by looking at the code
+
+![map](img/obstacles1.png)
+![map](img/obstacles2.png)
 
 
 ## Improvements
@@ -76,6 +92,7 @@ During the game, calling `python gym/envs/box2d/car_racing.py` use the following
    - [x] ~~In an X-junction~~
    - [ ] With obstacle in front (DOES NOT MAKE SENSE TO IMPLEMENT RIGHT NOW)
 
+- [ ] Apply (random) force to the car (CONSIDER IF IT IS WORTH IT IMPLEMENTING IT)
 - [x] ~~Set speed of car~~
 - [x] ~~Set position of car~~
 - [x] ~~Add small distance to d to joing tracks, bigger than x and greater than 50~~
