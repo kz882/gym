@@ -84,6 +84,7 @@ During the game, calling `python gym/envs/box2d/car_racing.py` use the following
 
 ### high priority: 
 
+- [ ] Figure out how to implement the reward efficiently
 - [ ] Detect change of line (DOES NOT MAKE SENSE TO IMPLEMENT RIGHT NOW)
 - [ ] Get tile with certain conditions:
 
