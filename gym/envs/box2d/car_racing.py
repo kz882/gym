@@ -77,7 +77,7 @@ SHOW_XT_JUNCTIONS         = 0       # Shows in dark and light green the t and x 
 SHOW_JOINTS               = 0       # Shows joints in white
 SHOW_TURNS                = 0       # Shows the 10 hardest turns
 SHOW_AXIS                 = 0       # Draws two lines where the x and y axis are
-ZOOM_OUT                  = 1       # Shows maps in general and does not do zoom
+ZOOM_OUT                  = 0       # Shows maps in general and does not do zoom
 if ZOOM_OUT: ZOOM         = 0.25    # Complementary to ZOOM_OUT
 
 class FrictionDetector(contactListener):
@@ -725,6 +725,7 @@ class CarRacing(gym.Env, EzPickle):
         return self.step(None)[0]
 
     def step(self, action):
+        print(action)
         if action is not None:
             self.car.steer(-action[0])
             self.car.gas(action[1])
@@ -732,7 +733,8 @@ class CarRacing(gym.Env, EzPickle):
 
         self.car.step(1.0/FPS)
         self.world.Step(1.0/FPS, 6*30, 2*30)
-        self.t += 1.0/FPS
+        self.t += 1.0#/FPS
+        print(self.t)
 
         self.state = self.render("state_pixels")
 
@@ -745,7 +747,7 @@ class CarRacing(gym.Env, EzPickle):
             self.car.fuel_spent = 0.0
             step_reward = self.reward - self.prev_reward
             self.prev_reward = self.reward
-            if self.tile_visited_count==len(self.track):
+            if self.tile_visited_count==len(self.track) or self.t > 500:
                 done = True
             x, y = self.car.hull.position
             if abs(x) > PLAYFIELD or abs(y) > PLAYFIELD:
