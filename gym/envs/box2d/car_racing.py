@@ -155,7 +155,8 @@ class CarRacing(gym.Env, EzPickle):
         self.num_obstacles     = 10  # Number of obstacles in the track 
         self.max_single_lane   = 50  # Max number of tiles of a single lane road
 
-        self.action_space = spaces.Box( np.array([-1,0,0]), np.array([+1,+1,+1]), dtype=np.float32)  # steer, gas, brake
+        # Incorporating reverse now the np.array([-1,0,0]) becomes np.array[-1,-1,0]
+        self.action_space = spaces.Box( np.array([-1,-1,0]), np.array([+1,+1,+1]), dtype=np.float32)  # steer, gas, brake
         self.observation_space = spaces.Box(low=0, high=255, shape=(STATE_H, STATE_W, 3), dtype=np.uint8)
 
     def set_config(self, num_tracks=2, num_lanes=2, num_lanes_changes=2, num_obstacles=10):
@@ -771,8 +772,9 @@ class CarRacing(gym.Env, EzPickle):
         scroll_y = self.car.hull.position[1]
         angle = -self.car.hull.angle
         vel = self.car.hull.linearVelocity
-        if np.linalg.norm(vel) > 0.5:
-            angle = math.atan2(vel[0], vel[1])
+        # The angle is the same as the car, not as the speed
+        #if np.linalg.norm(vel) > 0.5:
+        #    angle = math.atan2(vel[0], vel[1])
         self.transform.set_scale(zoom, zoom)
         if ZOOM_OUT:
             self.transform.set_translation(WINDOW_W/2, WINDOW_H/2)
@@ -1153,12 +1155,14 @@ if __name__=="__main__":
         if k==key.LEFT:  a[0] = -1.0
         if k==key.RIGHT: a[0] = +1.0
         if k==key.UP:    a[1] = +1.0
-        if k==key.DOWN:  a[2] = +0.8   # set 1.0 for wheels to block to zero rotation
+        if k==key.DOWN:  a[1] = -1.0
+        if k==key.SPACE:  a[2] = +0.8   # set 1.0 for wheels to block to zero rotation
     def key_release(k, mod):
         if k==key.LEFT  and a[0]==-1.0: a[0] = 0
         if k==key.RIGHT and a[0]==+1.0: a[0] = 0
         if k==key.UP:    a[1] = 0
-        if k==key.DOWN:  a[2] = 0
+        if k==key.DOWN:  a[1] = 0
+        if k==key.SPACE: a[2] = 0
         if k==key.D:     set_trace()
         if k==key.R:     env.reset()
         if k==key.Z:     env.change_zoom()

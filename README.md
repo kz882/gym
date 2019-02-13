@@ -13,6 +13,7 @@ This repo has improvements on the complexity for CarRacing-v1, take into account
 * Control where to position the car and its speed
 * Extra controlls
 * Meta information about the track
+* Car can go in reverse, break is SPACE
 
    * where are the intersections
    * Where are the T-junctions
