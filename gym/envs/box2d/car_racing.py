@@ -151,10 +151,10 @@ class CarRacing(gym.Env, EzPickle):
         self.prev_reward = 0.0
 
         # Config
-        self.num_lanes_changes = 3   # Number of points where lanes change from 1 lane to two and viceversa 
-        self.num_tracks        = 2   # Number of tracks, this control the complexity of the map
-        self.num_lanes         = 2   # Number of lanes, 1 or 2
-        self.num_obstacles     = 10  # Number of obstacles in the track 
+        self.num_lanes_changes = 0#3   # Number of points where lanes change from 1 lane to two and viceversa 
+        self.num_tracks        = 1#2   # Number of tracks, this control the complexity of the map
+        self.num_lanes         = 1#2   # Number of lanes, 1 or 2
+        self.num_obstacles     = 0#10  # Number of obstacles in the track 
         self.max_single_lane   = 50  # Max number of tiles of a single lane road
 
         # Incorporating reverse now the np.array([-1,0,0]) becomes np.array[-1,-1,0]
@@ -302,7 +302,7 @@ class CarRacing(gym.Env, EzPickle):
         if well_glued_together > TRACK_DETAIL_STEP:
             return False
 
-        track     = [[track[i-1],track[i]] for i in range(len(track))]
+        track = [[track[i-1],track[i]] for i in range(len(track))]
         return track
 
     def _create_obstacles(self):
@@ -381,76 +381,77 @@ class CarRacing(gym.Env, EzPickle):
 
         # Trying to get all intersections
         intersections = set()
-        for pos, point1 in enumerate(self.tracks[0][:,1,2:]):
-            d = np.linalg.norm(self.track[len(self.tracks[0]):,1,2:]-point1,axis=1)
-            if d.min() <= 2.05*TRACK_WIDTH:
-                intersections.add(pos)
+        if self.num_tracks > 1:
+            for pos, point1 in enumerate(self.tracks[0][:,1,2:]):
+                d = np.linalg.norm(self.track[len(self.tracks[0]):,1,2:]-point1,axis=1)
+                if d.min() <= 2.05*TRACK_WIDTH:
+                    intersections.add(pos)
 
-        intersections = list(intersections)
-        intersections.sort()
-        track_len = len(self.tracks[0])
+            intersections = list(intersections)
+            intersections.sort()
+            track_len = len(self.tracks[0])
         
-        def backwards():
-            me = intersections[-1]
-            del intersections[-1]
-            if len(intersections) == 0: return [me]
-            else:
-                if (me-1)%track_len == intersections[-1]:
-                    return [me]+backwards()
+            def backwards():
+                me = intersections[-1]
+                del intersections[-1]
+                if len(intersections) == 0: return [me]
                 else:
-                    return [me]
+                    if (me-1)%track_len == intersections[-1]:
+                        return [me]+backwards()
+                    else:
+                        return [me]
 
-        def forward():
-            me = intersections[0]
-            del intersections[0]
-            if len(intersections) == 0: return [me]
-            else:
-                if (me+1)%track_len == intersections[0]:
-                    return [me]+forward()
+            def forward():
+                me = intersections[0]
+                del intersections[0]
+                if len(intersections) == 0: return [me]
                 else:
-                    return [me]
+                    if (me+1)%track_len == intersections[0]:
+                        return [me]+forward()
+                    else:
+                        return [me]
 
-        groups = []
-        tmp_lst = []
-        while len(intersections) != 0:
-            me = intersections[0]
-            tmp_lst = tmp_lst + backwards()
-            if len(intersections) != 0:
-                if (me-1)%track_len == intersections[-1]:
-                    tmp_lst = tmp_lst + forward()
-
-            groups.append(tmp_lst)
+            groups = []
             tmp_lst = []
+            while len(intersections) != 0:
+                me = intersections[0]
+                tmp_lst = tmp_lst + backwards()
+                if len(intersections) != 0:
+                    if (me-1)%track_len == intersections[-1]:
+                        tmp_lst = tmp_lst + forward()
 
-        for group in groups:
-            min_dist_idx = None
-            min_dist     = 1e10
-            for idx in group:
-                d = np.linalg.norm(self.track[track_len:,1,2:] - self.track[idx,1,2:],axis=1)
-                if d.min() < min_dist:
-                    min_dist     = d.min()
-                    min_dist_idx = idx
-            
-            if min_dist <= TRACK_WIDTH:
-                intersections.append(min_dist_idx)
+                groups.append(tmp_lst)
+                tmp_lst = []
 
-        info['intersection'][list(intersections)] = True
+            for group in groups:
+                min_dist_idx = None
+                min_dist     = 1e10
+                for idx in group:
+                    d = np.linalg.norm(self.track[track_len:,1,2:] - self.track[idx,1,2:],axis=1)
+                    if d.min() < min_dist:
+                        min_dist     = d.min()
+                        min_dist_idx = idx
+                
+                if min_dist <= TRACK_WIDTH:
+                    intersections.append(min_dist_idx)
 
-        # Classifying intersections
-        for idx in intersections:
-            point = self.track[idx,1,2:]
-            d = np.linalg.norm(self.track[:,1,2:]-point, axis=1)
-            argmin = d[info['track'] != 0].argmin()
-            filt = np.where(d < TRACK_WIDTH*2.5)
-            
-            # TODO ignore intersections with angles of pi/2
+            info['intersection'][list(intersections)] = True
 
-            if info[filt]['start'].sum() - info[filt]['end'].sum() != 0:
-                info[idx]['t'] = True
-                info[argmin + track_len]['t'] = True                
-            else:
-                info[idx]['x'] = True
-                info[argmin + track_len]['x'] = True                
+            # Classifying intersections
+            for idx in intersections:
+                point = self.track[idx,1,2:]
+                d = np.linalg.norm(self.track[:,1,2:]-point, axis=1)
+                argmin = d[info['track'] != 0].argmin()
+                filt = np.where(d < TRACK_WIDTH*2.5)
+                
+                # TODO ignore intersections with angles of pi/2
+
+                if info[filt]['start'].sum() - info[filt]['end'].sum() != 0:
+                    info[idx]['t'] = True
+                    info[argmin + track_len]['t'] = True                
+                else:
+                    info[idx]['x'] = True
+                    info[argmin + track_len]['x'] = True                
 
         # Getting angles of curves
         max_idxs = []
@@ -542,6 +543,7 @@ class CarRacing(gym.Env, EzPickle):
         for _ in range(self.num_tracks):
             track = self._get_track(12)
             if not track or len(track) == 0: return track
+            track = np.array(track)
             tracks.append(track)
 
         self.tracks = tracks
@@ -727,7 +729,6 @@ class CarRacing(gym.Env, EzPickle):
         return self.step(None)[0]
 
     def step(self, action):
-        print(action)
         if action is not None:
             self.car.steer(-action[0])
             self.car.gas(action[1])
@@ -736,7 +737,6 @@ class CarRacing(gym.Env, EzPickle):
         self.car.step(1.0/FPS)
         self.world.Step(1.0/FPS, 6*30, 2*30)
         self.t += 1.0#/FPS
-        print(self.t)
 
         self.state = self.render("state_pixels")
 
