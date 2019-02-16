@@ -89,6 +89,7 @@ During the game, calling `python gym/envs/box2d/car_racing.py` use the following
 - [ ] Implement black and white output
 - [ ] Implement number of frames as input
 - [ ] Discretise action space
+- [ ] Implement screenshots of input
 - [ ] Figure out how to implement the reward efficiently
 - [ ] Detect change of line (DOES NOT MAKE SENSE TO IMPLEMENT RIGHT NOW)
 - [ ] Get tile with certain conditions:
