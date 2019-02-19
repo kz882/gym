@@ -1,10 +1,12 @@
 import sys, math
 import numpy as np
 from pdb import set_trace
+from PIL import Image
 from copy import copy
 
 import Box2D
 from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape, revoluteJointDef, contactListener)
+import cv2
 
 import gym
 from gym import spaces
@@ -842,6 +844,13 @@ class CarRacing(gym.Env, EzPickle):
             arr = np.fromstring(image_data.data, dtype=np.uint8, sep='')
             arr = arr.reshape(VP_H, VP_W, 4)
             arr = arr[::-1, :, 0:3]
+            arr_bw = np.dot(arr[...,:3], [0.299, 0.587, 0.114])
+            if 0 and self.t % 100 == 0: 
+                arr_bw = np.stack((arr_bw,)*3, axis=-1)
+                im = Image.fromarray(arr)
+                im.save("screenshot_rgb.jpeg")
+                im = Image.fromarray(arr_bw.astype('uint8')*255)
+                im.save("screenshot_b&w.jpeg")
 
         if mode=="rgb_array" and not self.human_render: # agent can call or not call env.render() itself when recording video.
             win.flip()

@@ -20,6 +20,7 @@ This repo has improvements on the complexity for CarRacing-v1, take into account
    * Where are the X-junctions
    * The angle of the curve
    * Positions near intersections, curves, or obstacles
+
 * Function to apply (random) force to the car, to simulate noise or malfunctioning
 
 Here some images of some changes:
@@ -85,6 +86,11 @@ During the game, calling `python gym/envs/box2d/car_racing.py` use the following
 
 ### high priority: 
 
+- [ ] End episode if reward decreases x points (Take into account obstacles)
+- [ ] Implement black and white output
+- [ ] Implement number of frames as input
+- [ ] Discretise action space
+- [ ] Implement screenshots of input
 - [ ] Figure out how to implement the reward efficiently
 - [ ] Detect change of line (DOES NOT MAKE SENSE TO IMPLEMENT RIGHT NOW)
 - [ ] Get tile with certain conditions:
