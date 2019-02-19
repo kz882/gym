@@ -167,6 +167,8 @@ class CarRacing(gym.Env, EzPickle):
             num_obstacles=0, 
             max_single_lane=0,
             max_time_out=2.0,
+            grayscale=True,
+            show_info_panel=True,
             allow_reverse=0):
         '''
         Controls some attributes of the game, such as the number of tracks (num_tracks)
@@ -204,6 +206,11 @@ class CarRacing(gym.Env, EzPickle):
                                      in seconds to allow you have a sense of the magnitude 
                                      This is not necessary time of not earning rewards, only time
                                      outside the track or without moving
+
+        grayscale         (bool 0)   Whether or not use grayscale for the state representation,
+                                     the state will be 96x96 of values between 0,255 as rbg state
+
+        show_info_panel   (bool 1)   Whether or not show the info black panel at the bottom of the state
         '''
         
         # Number of lanes, 1 or 2
@@ -222,15 +229,25 @@ class CarRacing(gym.Env, EzPickle):
         self.max_single_lane = max_single_lane if max_single_lane > 10 else 50
 
         # Allow reverse
-        self.allow_reverse = allow_reverse if allow_reverse in [True, False] else 0
+        self.allow_reverse = allow_reverse
         min_speed = -1 if self.allow_reverse else 0
 
         # Max time out of track
         self.max_time_out = max_time_out if max_time_out >= 0 else 2.0
 
+        # Grayscale
+        self.grayscale = grayscale
+        if self.grayscale: 
+            state_shape = (STATE_H, STATE_W)
+        else: 
+            state_shape = (STATE_H, STATE_W,3)
+
+        # Show or not back bottom info panel
+        self.show_info_panel = show_info_panel
+
         # Incorporating reverse now the np.array([-1,0,0]) becomes np.array[-1,-1,0]
         self.action_space = spaces.Box( np.array([-1,min_speed,0]), np.array([+1,+1,+1]), dtype=np.float32)  # steer, gas, brake
-        self.observation_space = spaces.Box(low=0, high=255, shape=(STATE_H, STATE_W, 3), dtype=np.uint8)
+        self.observation_space = spaces.Box(low=0, high=255, shape=state_shape, dtype=np.uint8)
 
 
 
@@ -872,14 +889,10 @@ class CarRacing(gym.Env, EzPickle):
             arr = np.fromstring(image_data.data, dtype=np.uint8, sep='')
             arr = arr.reshape(VP_H, VP_W, 4)
             arr = arr[::-1, :, 0:3]
-            arr_bw = np.dot(arr[...,:3], [0.299, 0.587, 0.114])
-            if 0 and self.t % 100 == 0: 
-                arr_bw = np.stack((arr_bw,)*3, axis=-1)
-                im = Image.fromarray(arr)
-                im.save("screenshot_rgb.jpeg")
-                im = Image.fromarray(arr_bw.astype('uint8')*255)
-                im.save("screenshot_b&w.jpeg")
-
+            if self.grayscale:
+                arr_bw = np.dot(arr[...,:3], [0.299, 0.587, 0.114])
+                arr = arr_bw
+            
         if mode=="rgb_array" and not self.human_render: # agent can call or not call env.render() itself when recording video.
             win.flip()
 
@@ -899,6 +912,20 @@ class CarRacing(gym.Env, EzPickle):
 
         self.viewer.onetime_geoms = []
         return arr
+    
+    def screenshot(self, dest="./", name=None):
+        ''' 
+        Saves the current state
+        '''
+        state = self.render("state_pixels")
+        if state is not None:
+            if self.grayscale:
+                state = state
+                state = np.stack([state,state,state], axis=-1)
+            state = state.astype(np.uint8)
+            im = Image.fromarray(state)
+            if name == None: name = "screenshot_%0.3f" % self.t
+            im.save("%s/%s.jpeg" % (dest, name))
 
     def close(self):
         if self.viewer is not None:
@@ -1106,37 +1133,38 @@ class CarRacing(gym.Env, EzPickle):
                 gl.glVertex3f(x+1,y-1,0)
 
     def render_indicators(self, W, H):
-        gl.glBegin(gl.GL_QUADS)
-        s = W/40.0
-        h = H/40.0
-        gl.glColor4f(0,0,0,1)
-        gl.glVertex3f(W, 0, 0)
-        gl.glVertex3f(W, 5*h, 0)
-        gl.glVertex3f(0, 5*h, 0)
-        gl.glVertex3f(0, 0, 0)
-        def vertical_ind(place, val, color):
-            gl.glColor4f(color[0], color[1], color[2], 1)
-            gl.glVertex3f((place+0)*s, h + h*val, 0)
-            gl.glVertex3f((place+1)*s, h + h*val, 0)
-            gl.glVertex3f((place+1)*s, h, 0)
-            gl.glVertex3f((place+0)*s, h, 0)
-        def horiz_ind(place, val, color):
-            gl.glColor4f(color[0], color[1], color[2], 1)
-            gl.glVertex3f((place+0)*s, 4*h , 0)
-            gl.glVertex3f((place+val)*s, 4*h, 0)
-            gl.glVertex3f((place+val)*s, 2*h, 0)
-            gl.glVertex3f((place+0)*s, 2*h, 0)
-        true_speed = np.sqrt(np.square(self.car.hull.linearVelocity[0]) + np.square(self.car.hull.linearVelocity[1]))
-        vertical_ind(5, 0.02*true_speed, (1,1,1))
-        vertical_ind(7, 0.01*self.car.wheels[0].omega, (0.0,0,1)) # ABS sensors
-        vertical_ind(8, 0.01*self.car.wheels[1].omega, (0.0,0,1))
-        vertical_ind(9, 0.01*self.car.wheels[2].omega, (0.2,0,1))
-        vertical_ind(10,0.01*self.car.wheels[3].omega, (0.2,0,1))
-        horiz_ind(20, -10.0*self.car.wheels[0].joint.angle, (0,1,0))
-        horiz_ind(30, -0.8*self.car.hull.angularVelocity, (1,0,0))
-        gl.glEnd()
-        self.score_label.text = "%04i" % self.reward
-        self.score_label.draw()
+        if self.show_info_panel:
+            gl.glBegin(gl.GL_QUADS)
+            s = W/40.0
+            h = H/40.0
+            gl.glColor4f(0,0,0,1)
+            gl.glVertex3f(W, 0, 0)
+            gl.glVertex3f(W, 5*h, 0)
+            gl.glVertex3f(0, 5*h, 0)
+            gl.glVertex3f(0, 0, 0)
+            def vertical_ind(place, val, color):
+                gl.glColor4f(color[0], color[1], color[2], 1)
+                gl.glVertex3f((place+0)*s, h + h*val, 0)
+                gl.glVertex3f((place+1)*s, h + h*val, 0)
+                gl.glVertex3f((place+1)*s, h, 0)
+                gl.glVertex3f((place+0)*s, h, 0)
+            def horiz_ind(place, val, color):
+                gl.glColor4f(color[0], color[1], color[2], 1)
+                gl.glVertex3f((place+0)*s, 4*h , 0)
+                gl.glVertex3f((place+val)*s, 4*h, 0)
+                gl.glVertex3f((place+val)*s, 2*h, 0)
+                gl.glVertex3f((place+0)*s, 2*h, 0)
+            true_speed = np.sqrt(np.square(self.car.hull.linearVelocity[0]) + np.square(self.car.hull.linearVelocity[1]))
+            vertical_ind(5, 0.02*true_speed, (1,1,1))
+            vertical_ind(7, 0.01*self.car.wheels[0].omega, (0.0,0,1)) # ABS sensors
+            vertical_ind(8, 0.01*self.car.wheels[1].omega, (0.0,0,1))
+            vertical_ind(9, 0.01*self.car.wheels[2].omega, (0.2,0,1))
+            vertical_ind(10,0.01*self.car.wheels[3].omega, (0.2,0,1))
+            horiz_ind(20, -10.0*self.car.wheels[0].joint.angle, (0,1,0))
+            horiz_ind(30, -0.8*self.car.hull.angularVelocity, (1,0,0))
+            gl.glEnd()
+            self.score_label.text = "%04i" % self.reward
+            self.score_label.draw()
 
     def get_rnd_point_in_track(self,border=True):
         '''
@@ -1232,8 +1260,11 @@ if __name__=="__main__":
         if k==key.D:     set_trace()
         if k==key.R:     env.reset()
         if k==key.Z:     env.change_zoom()
+        if k==key.Q:     raise KeyboardInterrupt
     env = CarRacing()
-    env.set_config(allow_reverse=False)
+
+    env.set_config(allow_reverse=False, grayscale=1, show_info_panel=False)
+
     env.render()
     record_video = False
     if record_video:
@@ -1245,6 +1276,7 @@ if __name__=="__main__":
         total_reward = 0.0
         steps = 0
         restart = False
+
         while True:
             s, r, done, info = env.step(a)
             total_reward += r
@@ -1258,4 +1290,9 @@ if __name__=="__main__":
             if not record_video: # Faster, but you can as well call env.render() every time to play full window.
                 env.render()
             if done or restart: break
+
+            # every 100 steps save screenshot
+            if steps % 200 == 0:
+                env.screenshot("./screenshots")
+
     env.close()

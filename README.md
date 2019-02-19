@@ -70,16 +70,17 @@ This are some improvements of the environment, this allows configures each exper
 ### Ger random position in the track
 
 `get_rnd_point_in_track(border)` : returns a random point in the track with the angle equal to the tile of the track, the x position can be randomly in the x (relative) axis of the tile, border=True make sure the x position is enough to make the car fit in the track, otherwise the point can be in the extreme of the track and two wheels will be outside the track
-Returns: [beta, x, y]
+Returns: [beta, x, y]. 
 
 
-### Extra controls
+### Extra controls 
 
 During the game, calling `python gym/envs/box2d/car_racing.py` use the following keys to do certain stuff
 
 * `D`: To enter python debug mode
 * `Z`: Zoom in or out
 * `R`: Get new track `reset`
+* `Q`: quit, close game
 
 
 ## To Improve (by importance)
@@ -88,8 +89,9 @@ During the game, calling `python gym/envs/box2d/car_racing.py` use the following
 
 - [x] ~~Add controlls to deactivate reverse~~
 - [x] ~~End episode after `max_time_out` *seconds* out of track/without moving~~
-- [ ] Implement black and white output
-- [ ] Add small screenshot of what the car is seeing as a function
+- [x] ~~Implement black and white output: use `grayscale` opt in config~~
+- [x] ~~Add small screenshot of what the car is seeing as a function: use `screenshot` func~~
+- [x] ~~Add option to remove bottom panel from state, use `show_info_panel` in config~~
 - [ ] Implement number of frames to return as observations (state)
 - [ ] Discretise action space
 - [ ] Figure out how to implement the reward efficiently
