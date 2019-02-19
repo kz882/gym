@@ -86,6 +86,7 @@ During the game, calling `python gym/envs/box2d/car_racing.py` use the following
 
 ### high priority: 
 
+- [x] ~~Add controlls to deactivate reverse~~
 - [ ] End episode if reward decreases x points (Take into account obstacles)
 - [ ] Implement black and white output
 - [ ] Implement number of frames as input
@@ -114,6 +115,7 @@ During the game, calling `python gym/envs/box2d/car_racing.py` use the following
 
 ### low priority:
 
+- [ ] Randomize the direction (following the track direction or backwards) in get positions functions
 - [ ] Differentiate y from t junctions
 - [ ] Differentiate x from merge juntions
 - [ ] Add road lines
