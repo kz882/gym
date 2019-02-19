@@ -149,38 +149,65 @@ class CarRacing(gym.Env, EzPickle):
         self.prev_reward = 0.0
 
         # Config
-        self.num_lanes_changes = 0#3   # Number of points where lanes change from 1 lane to two and viceversa 
-        self.num_tracks        = 1#2   # Number of tracks, this control the complexity of the map
-        self.num_lanes         = 1#2   # Number of lanes, 1 or 2
-        self.num_obstacles     = 0#10  # Number of obstacles in the track 
-        self.max_single_lane   = 50  # Max number of tiles of a single lane road
+        self.set_config()
 
-        # Incorporating reverse now the np.array([-1,0,0]) becomes np.array[-1,-1,0]
-        self.action_space = spaces.Box( np.array([-1,-1,0]), np.array([+1,+1,+1]), dtype=np.float32)  # steer, gas, brake
-        self.observation_space = spaces.Box(low=0, high=255, shape=(STATE_H, STATE_W, 3), dtype=np.uint8)
-
-    def set_config(self, num_tracks=2, num_lanes=2, num_lanes_changes=2, num_obstacles=10):
+    def set_config(self, 
+            num_tracks=1, 
+            num_lanes=1, 
+            num_lanes_changes=0, 
+            num_obstacles=0, 
+            max_single_lane=0,
+            allow_reverse=0):
         '''
         Controls some attributes of the game, such as the number of tracks (num_tracks)
         which is a proxy to control the complexity of map, the number of lanes (num_lanes_changes) and
         the probability of finding an obstacle (prob_osbtacle).
         Only call this method onceto set the parameters
 
-        num_tracks:       (int 2)    Number of tracks, in {1,2}, 1: simple, 2: complex
-        num_lanes:        (int 2)    Number of lanes in track, > 0 ({1,2})
-        num_lanes_changes (int 2)    Number of changes from 2 to 1 or viceversa, this 
+        num_tracks:       (int 1)    Number of tracks, in {1,2}, 1: simple, 2: complex, you can
+                                     modify the code to allow more than one track, but good beheviour
+                                     is not garanted 
+
+        num_lanes:        (int 1)    Number of lanes in track, > 0 ({1,2})
+
+        num_lanes_changes (int 0)    Number of changes from 2 to 1 or viceversa, this 
                                      is ultimately transform as a probability over the
                                      total number of points in track
-        num_obstacles     (foat 0.1) The probability of finding an obstacle a point of 
+
+        num_obstacles     (foat 0)   The probability of finding an obstacle a point of 
                                      the track, [0,1]
-        max_single_lane   (int 50)   The maximum number of tiles that a single lane road
+
+        max_single_lane   (int 0)    The maximum number of tiles that a single lane road
                                      can have before becoming two lanes again
+
+        allow_reverse     (bool 0)   Allow the car going in reverse, if true key.DOWN goes
+                                     backwards and action_space changes
         '''
-        self.num_lanes         = num_lanes  if num_lanes  > 0 and num_lanes  <= 2 else self.num_lanes
-        self.num_tracks        = num_tracks if num_tracks > 0 and num_tracks <= 2 else self.num_tracks
-        self.num_obstacles     = num_obstacles if num_obstacles >= 0 else self.num_obstacles
-        self.num_lanes_changes = num_lanes_changes if num_lanes_changes >= 0 else self.num_lanes_changes
-        self.max_single_lane   = max_single_lane if max_single_lane > 10 else self.max_single_lane
+        
+        # Number of lanes, 1 or 2
+        self.num_lanes = num_lanes  if num_lanes in [1,2] else 1
+
+        # Number of tracks, this control the complexity of the map
+        self.num_tracks = num_tracks if num_tracks > 0 and num_tracks <= 2 else 1
+
+        # Number of obstacles in the track
+        self.num_obstacles = num_obstacles if num_obstacles >= 0 else 0
+
+        # Number of points where lanes change from 1 lane to two and viceversa
+        self.num_lanes_changes = num_lanes_changes if num_lanes_changes >= 0 else 0
+
+        # Max number of tiles of a single lane road
+        self.max_single_lane = max_single_lane if max_single_lane > 10 else 50
+
+        # Allow reverse
+        self.allow_reverse = allow_reverse if allow_reverse in [True, False] else 0
+        min_speed = -1 if self.allow_reverse else 0
+
+        # Incorporating reverse now the np.array([-1,0,0]) becomes np.array[-1,-1,0]
+        self.action_space = spaces.Box( np.array([-1,min_speed,0]), np.array([+1,+1,+1]), dtype=np.float32)  # steer, gas, brake
+        self.observation_space = spaces.Box(low=0, high=255, shape=(STATE_H, STATE_W, 3), dtype=np.uint8)
+
+
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -198,7 +225,7 @@ class CarRacing(gym.Env, EzPickle):
         position = [beta,x,y]
         '''
         self.car.destroy()
-        self.car = Car(self.world, *position)
+        self.car = Car(self.world, *position, allow_reverse=self.allow_reverse)
 
     def _get_track(self, CHECKPOINTS, TRACK_RAD=900/SCALE):
 
@@ -721,7 +748,7 @@ class CarRacing(gym.Env, EzPickle):
             print("retry to generate track (normal if there are not many of this messages)")
         #if car_position is None or car_position[0] == None or car_position[1] == None or car_position[2] == None:
         car_position = self.track[0][1][1:4]
-        self.car = Car(self.world, *car_position)
+        self.car = Car(self.world, *car_position, allow_reverse=self.action_space)
         self.place_agent(self.get_rnd_point_in_track())
 
         return self.step(None)[0]
@@ -734,7 +761,7 @@ class CarRacing(gym.Env, EzPickle):
 
         self.car.step(1.0/FPS)
         self.world.Step(1.0/FPS, 6*30, 2*30)
-        self.t += 1.0#/FPS
+        self.t += 1.0/FPS
 
         self.state = self.render("state_pixels")
 
@@ -747,7 +774,7 @@ class CarRacing(gym.Env, EzPickle):
             self.car.fuel_spent = 0.0
             step_reward = self.reward - self.prev_reward
             self.prev_reward = self.reward
-            if self.tile_visited_count==len(self.track) or self.t > 500:
+            if self.tile_visited_count==len(self.track):
                 done = True
             x, y = self.car.hull.position
             if abs(x) > PLAYFIELD or abs(y) > PLAYFIELD:
@@ -1169,6 +1196,7 @@ if __name__=="__main__":
         if k==key.R:     env.reset()
         if k==key.Z:     env.change_zoom()
     env = CarRacing()
+    env.set_config(allow_reverse=False)
     env.render()
     record_video = False
     if record_video:

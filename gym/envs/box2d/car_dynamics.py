@@ -47,8 +47,9 @@ WHEEL_WHITE = (0.3,0.3,0.3)
 MUD_COLOR   = (0.4,0.4,0.0)
 
 class Car:
-    def __init__(self, world, init_angle, init_x, init_y):
+    def __init__(self, world, init_angle, init_x, init_y, allow_reverse=False):
         self.world = world
+        self.allow_reverse = allow_reverse
         self.hull = self.world.CreateDynamicBody(
             position = (init_x, init_y),
             angle = init_angle,
@@ -108,12 +109,21 @@ class Car:
 
     def gas(self, gas):
         'control: rear wheel drive'
-        gas = np.clip(gas, -1, 1)
-        for w in self.wheels[2:4]:
-            diff = gas - w.gas
-            if   gas > 0 and diff > +0.1: diff = +0.1  # gradually increase, but stop immediately
-            elif gas < 0 and diff < -0.1: diff = -0.1  # no longer stops immediately
-            w.gas += diff
+        if self.allow_reverse:
+            gas = np.clip(gas, -1, 1)
+            #gas = (gas+1.0)/2.0
+            for w in self.wheels[2:4]:
+                diff = gas - w.gas
+                if   gas > 0 and diff > +0.1: diff = +0.1  # gradually increase, but stop immediately
+                elif gas < 0 and diff < -0.1: diff = -0.1  # no longer stops immediately
+                w.gas += diff
+                #w.gas = max(w.gas+diff,0)
+        else:
+            gas = np.clip(gas, 0, 1)
+            for w in self.wheels[2:4]:
+                diff = gas - w.gas
+                if diff > 0.1: diff = 0.1  # gradually increase, but stop immediately
+                w.gas += diff
 
     def brake(self, b):
         'control: brake b=0..1, more than 0.9 blocks wheels to zero rotation'
