@@ -87,11 +87,11 @@ During the game, calling `python gym/envs/box2d/car_racing.py` use the following
 ### high priority: 
 
 - [x] ~~Add controlls to deactivate reverse~~
-- [ ] End episode if reward decreases x points (Take into account obstacles)
+- [x] ~~End episode after `max_time_out` *seconds* out of track/without moving~~
 - [ ] Implement black and white output
-- [ ] Implement number of frames as input
+- [ ] Add small screenshot of what the car is seeing as a function
+- [ ] Implement number of frames to return as observations (state)
 - [ ] Discretise action space
-- [ ] Implement screenshots of input
 - [ ] Figure out how to implement the reward efficiently
 - [ ] Detect change of line (DOES NOT MAKE SENSE TO IMPLEMENT RIGHT NOW)
 - [ ] Get tile with certain conditions:

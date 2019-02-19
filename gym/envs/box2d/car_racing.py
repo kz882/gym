@@ -66,10 +66,11 @@ NUM_TILES_FOR_AVG = 5 # The number of tiles before and after to takeinto account
 
 ROAD_COLOR = [0.4, 0.4, 0.4]
 
-OBSTACLE_NAME = 'obstacle'
-TILE_NAME     = 'tile'
-BORDER_NAME   = 'border'
-GRASS_NAME    = 'grass'
+OBSTACLE_NAME  = 'obstacle'
+OBSTACLE_VALUE = -10
+TILE_NAME      = 'tile'
+BORDER_NAME    = 'border'
+GRASS_NAME     = 'grass'
 
 # Debug actions
 SHOW_ENDS_OF_TRACKS       = 0       # Shows with red dots the end of track
@@ -108,19 +109,24 @@ class FrictionDetector(contactListener):
             tile.color[1] = ROAD_COLOR[1]
             tile.color[2] = ROAD_COLOR[2]
         if not obj or "tiles" not in obj.__dict__: return
+
+        # Substracting value of obstacle
         if tile.typename == OBSTACLE_NAME:
-            self.env.reward -= 10
+            self.env.reward += OBSTACLE_VALUE
+
+        if begin:
+                obj.tiles.add(tile)
+                #print tile.road_friction, "ADD", len(obj.tiles)
+                if not tile.road_visited:
+                    tile.road_visited = True
+                    self.env.reward += 1000.0/len(self.env.track)
+                    self.env.tile_visited_count += 1
         else:
-            if begin:
-                    obj.tiles.add(tile)
-                    #print tile.road_friction, "ADD", len(obj.tiles)
-                    if not tile.road_visited:
-                        tile.road_visited = True
-                        self.env.reward += 1000.0/len(self.env.track)
-                        self.env.tile_visited_count += 1
-            else:
-                obj.tiles.remove(tile)
-                #print tile.road_friction, "DEL", len(obj.tiles) -- should delete to zero when on grass (this works)
+            obj.tiles.remove(tile)
+            #print tile.road_friction, "DEL", len(obj.tiles) -- should delete to zero when on grass (this works)
+
+            # Registering last contact with track
+            self.env.last_touch_with_track = self.env.t
 
 class CarRacing(gym.Env, EzPickle):
     metadata = {
@@ -149,6 +155,7 @@ class CarRacing(gym.Env, EzPickle):
         self.car = None
         self.reward = 0.0
         self.prev_reward = 0.0
+        self.highest_reward = 0.0
 
         # Config
         self.set_config()
@@ -159,6 +166,7 @@ class CarRacing(gym.Env, EzPickle):
             num_lanes_changes=0, 
             num_obstacles=0, 
             max_single_lane=0,
+            max_time_out=2.0,
             allow_reverse=0):
         '''
         Controls some attributes of the game, such as the number of tracks (num_tracks)
@@ -176,7 +184,7 @@ class CarRacing(gym.Env, EzPickle):
                                      is ultimately transform as a probability over the
                                      total number of points in track
 
-        num_obstacles     (foat 0)   The probability of finding an obstacle a point of 
+        num_obstacles     (flt 0)   The probability of finding an obstacle a point of 
                                      the track, [0,1]
 
         max_single_lane   (int 0)    The maximum number of tiles that a single lane road
@@ -184,6 +192,18 @@ class CarRacing(gym.Env, EzPickle):
 
         allow_reverse     (bool 0)   Allow the car going in reverse, if true key.DOWN goes
                                      backwards and action_space changes
+
+        max_time_out      (flt 2.0)  Max time that car is allowed to be outside of track or stoped 
+                                     before reseting the env (sending done=True), if 
+                                     max_time_out == 0 then car can be outside without any problem.
+                                     max_time_out is in "seconds" but given that in training time
+                                     goes faster it is really in 1xFPS (max_time_out = 1/FPS means 
+                                     the car is allow only to be outside the track for one frame.
+                                     Usually FPS is 59, see the constant in this file, but in 
+                                     playing time (runing this file) max_time_out is approximately 
+                                     in seconds to allow you have a sense of the magnitude 
+                                     This is not necessary time of not earning rewards, only time
+                                     outside the track or without moving
         '''
         
         # Number of lanes, 1 or 2
@@ -204,6 +224,9 @@ class CarRacing(gym.Env, EzPickle):
         # Allow reverse
         self.allow_reverse = allow_reverse if allow_reverse in [True, False] else 0
         min_speed = -1 if self.allow_reverse else 0
+
+        # Max time out of track
+        self.max_time_out = max_time_out if max_time_out >= 0 else 2.0
 
         # Incorporating reverse now the np.array([-1,0,0]) becomes np.array[-1,-1,0]
         self.action_space = spaces.Box( np.array([-1,min_speed,0]), np.array([+1,+1,+1]), dtype=np.float32)  # steer, gas, brake
@@ -734,6 +757,8 @@ class CarRacing(gym.Env, EzPickle):
         '''
         self._destroy()
         self.reward = 0.0
+        self.highest_reward = 0.0
+        self.last_touch_with_track = 0.0
         self.prev_reward = 0.0
         self.tile_visited_count = 0
         self.t = 0.0
@@ -776,8 +801,11 @@ class CarRacing(gym.Env, EzPickle):
             self.car.fuel_spent = 0.0
             step_reward = self.reward - self.prev_reward
             self.prev_reward = self.reward
-            if self.tile_visited_count==len(self.track):
+            if self.tile_visited_count==len(self.track) or \
+                    (self.t - self.last_touch_with_track > self.max_time_out and \
+                    self.max_time_out > 0.0):
                 done = True
+                print("done")
             x, y = self.car.hull.position
             if abs(x) > PLAYFIELD or abs(y) > PLAYFIELD:
                 done = True
