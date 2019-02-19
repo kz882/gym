@@ -169,6 +169,7 @@ class CarRacing(gym.Env, EzPickle):
             max_time_out=2.0,
             grayscale=True,
             show_info_panel=True,
+            frames_per_state=1,
             allow_reverse=0):
         '''
         Controls some attributes of the game, such as the number of tracks (num_tracks)
@@ -211,6 +212,9 @@ class CarRacing(gym.Env, EzPickle):
                                      the state will be 96x96 of values between 0,255 as rbg state
 
         show_info_panel   (bool 1)   Whether or not show the info black panel at the bottom of the state
+
+        frames_per_state  (int 1)    The number of concatenated frames for the state, =3 means 
+                                     that the state will be the last 3 frames of the env
         '''
         
         # Number of lanes, 1 or 2
@@ -237,14 +241,22 @@ class CarRacing(gym.Env, EzPickle):
 
         # Grayscale
         self.grayscale = grayscale
-        if self.grayscale: 
-            state_shape = (STATE_H, STATE_W)
-        else: 
-            state_shape = (STATE_H, STATE_W,3)
+        state_shape = [STATE_H, STATE_W]
+        if not self.grayscale: 
+            state_shape = state_shape.append(3)
 
         # Show or not back bottom info panel
         self.show_info_panel = show_info_panel
 
+        # Frames per state
+        self.frames_per_state = frames_per_state if frames_per_state > 0 else 1
+        if self.frames_per_state > 1:
+            state_shape = state_shape.insert(0,self.frames_per_state)
+
+            lst = list(range(self.frames_per_state))
+            self._update_index = [lst[-1]] + lst[:-1]
+
+        state_shape = tuple(state_shape)
         # Incorporating reverse now the np.array([-1,0,0]) becomes np.array[-1,-1,0]
         self.action_space = spaces.Box( np.array([-1,min_speed,0]), np.array([+1,+1,+1]), dtype=np.float32)  # steer, gas, brake
         self.observation_space = spaces.Box(low=0, high=255, shape=state_shape, dtype=np.uint8)
@@ -785,6 +797,7 @@ class CarRacing(gym.Env, EzPickle):
         self.track = []
         self.tracks = []
         self.human_render = False
+        self.state = np.zeros(self.observation_space.shape)
 
         while True:
             success = self._create_track()
@@ -797,6 +810,13 @@ class CarRacing(gym.Env, EzPickle):
 
         return self.step(None)[0]
 
+    def _update_state(self,new_frame):
+        if self.frames_per_state > 1:
+            self.state[-1] = new_frame
+            self.state = self.state[self._update_index]
+        else:
+            self.state = new_frame
+
     def step(self, action):
         if action is not None:
             self.car.steer(-action[0])
@@ -807,7 +827,8 @@ class CarRacing(gym.Env, EzPickle):
         self.world.Step(1.0/FPS, 6*30, 2*30)
         self.t += 1.0/FPS
 
-        self.state = self.render("state_pixels")
+        # self.state = self.render("state_pixels") # Old code, only one frame
+        self._update_state(self.render("state_pixels"))
 
         step_reward = 0
         done = False
@@ -1263,7 +1284,8 @@ if __name__=="__main__":
         if k==key.Q:     raise KeyboardInterrupt
     env = CarRacing()
 
-    env.set_config(allow_reverse=False, grayscale=1, show_info_panel=False)
+    env.set_config(allow_reverse=False, grayscale=1, show_info_panel=False,
+            frames_per_state=3)
 
     env.render()
     record_video = False
@@ -1293,6 +1315,7 @@ if __name__=="__main__":
 
             # every 100 steps save screenshot
             if steps % 200 == 0:
-                env.screenshot("./screenshots")
+                #env.screenshot("./screenshots")
+                pass
 
     env.close()
