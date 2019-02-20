@@ -243,7 +243,7 @@ class CarRacing(gym.Env, EzPickle):
         self.grayscale = grayscale
         state_shape = [STATE_H, STATE_W]
         if not self.grayscale: 
-            state_shape = state_shape.append(3)
+            state_shape.append(3)
 
         # Show or not back bottom info panel
         self.show_info_panel = show_info_panel
@@ -251,7 +251,7 @@ class CarRacing(gym.Env, EzPickle):
         # Frames per state
         self.frames_per_state = frames_per_state if frames_per_state > 0 else 1
         if self.frames_per_state > 1:
-            state_shape = state_shape.insert(0,self.frames_per_state)
+            state_shape.insert(0,self.frames_per_state)
 
             lst = list(range(self.frames_per_state))
             self._update_index = [lst[-1]] + lst[:-1]
@@ -938,15 +938,24 @@ class CarRacing(gym.Env, EzPickle):
         ''' 
         Saves the current state
         '''
-        state = self.render("state_pixels")
+        state = self.state
         if state is not None:
-            if self.grayscale:
-                state = state
-                state = np.stack([state,state,state], axis=-1)
-            state = state.astype(np.uint8)
-            im = Image.fromarray(state)
-            if name == None: name = "screenshot_%0.3f" % self.t
-            im.save("%s/%s.jpeg" % (dest, name))
+            for f in range(self.frames_per_state):
+
+                if self.frames_per_state == 1:
+                    frame_str = ""
+                    frame = state
+                else:
+                    frame_str = "_frame%i" % f
+                    frame = state[f]
+
+                if self.grayscale:
+                    frame = np.stack([frame,frame,frame], axis=-1)
+
+                frame = frame.astype(np.uint8)
+                im = Image.fromarray(frame)
+                if name == None: name = "screenshot_%0.3f" % self.t
+                im.save("%s/%s%s.jpeg" % (dest, name, frame_str))
 
     def close(self):
         if self.viewer is not None:
@@ -1284,8 +1293,11 @@ if __name__=="__main__":
         if k==key.Q:     raise KeyboardInterrupt
     env = CarRacing()
 
-    env.set_config(allow_reverse=False, grayscale=1, show_info_panel=False,
-            frames_per_state=3)
+    env.set_config(
+            allow_reverse=False, 
+            grayscale=1,
+            show_info_panel=0,
+            frames_per_state=4)
 
     env.render()
     record_video = False
@@ -1315,7 +1327,7 @@ if __name__=="__main__":
 
             # every 100 steps save screenshot
             if steps % 200 == 0:
-                #env.screenshot("./screenshots")
+                env.screenshot("./screenshots")
                 pass
 
     env.close()

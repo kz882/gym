@@ -1,81 +1,76 @@
+# CarRacing-v1 (unofficial)
+an improvement over OpenAI gym Car-Racing-v0
 
-# OpenAi Gym with CarRacing-v1 (unofficial)
+This repo has improvements on the complexity for CarRacing-v0, which are focus thorwards makeing `Car-Racing` env solvable, it also intended to make the env complex enought to make it ideal to try new more complex tasks. 
 
-This repo has improvements on the complexity for CarRacing-v1, take into account that when the track is more complex, it is also slower.
+## New Features
 
-## Improved
+The new environment has some improvements regarding the complexity of the map, the action space and the observation space, let's start with the most useful changes
 
-* Complexity of map (several types of intersections)
-* Complexity of map (different numbers of lanes)
-* Obstacles added
-* More control over the agent
-* Easy to modify the reward function
-* Control where to position the car and its speed
-* Extra controlls
-* Meta information about the track
-* Car can go in reverse, break is SPACE
+### New Features in `action_space`
 
-   * where are the intersections
+The action space can be:
+
+* Continous (the original one), with min of `[-1,0,0]` and max of `[+1,+1,+1]`.
+* Continous allowing car going backwards (reverse), from `[-1,-1,0]` to `[+1,+1,+1]`.
+* Discrete, the action space is `[TURN_RIGHT, TURN_LEFT, GO_STRAIGHT, BREAK, DO_NOTHING]`
+
+### New Features in `observation_space`
+
+The observation space, i.e. the state (the raw pixels of the game), can be:
+
+* RGB (the original observation space) size `96x96x3`
+* Grayscale, size `96x96`
+* RGB with several contiguous frames, size `NUM_FRAMESx96x96x3` or `NUM_FRAMESx96x96` for grayscale
+* Include or not the information panel containing representations of the speed, direction, etc., size the same size for each case.
+
+### New Features regarding the Map
+
+The map of the track now is configurable but still completely random, now the map can be configurable with
+
+* Different type of road intersections and junctions, value in `{1,2}`, `1` for normal original track (faster to compute and create but without any interesection). `2` for track much more complex with different intersections such as t-junctions and x-intersections. Take into account that when the track is more complex, it is also slower. some images:
+
+![t](img/t.png)
+![y](img/junc.png)
+![y](img/map1.png)
+![y](img/map2.png)
+
+* Different numbers of lanes, value in `{1,2}` in bot case the *total* width of track will be the same in general. `1` for only one lane, `2` to incorporate two different lanes in order to keep track of which lane the car is and use that in the reward function, e.g. to train an agent to keep lane, or to take over, etc. Some screenshots:
+
+![map](img/lanes1.png)
+![map](img/lanes2.png)
+![map](img/map3.png)
+![map](img/map4.png)
+
+* Obstacles added, the value is the number of obstacles in the track starting from `0` (i.e. no obstacles). Steping on an obstacle is `-10` in the reward function. The value `-10` is hard-coded, but it is easy to modify in the file. The size and position of the obstacle are random, probably in next versions they will be configurable
+
+![obstacle](img/obstacles1.png)
+![obstacle](img/obstacles2.png)
+
+* Meta information about the track. It is easy to get the positions where t-junctions and intersections (a.k.a. *interesting points*) are, or get positions close to those interesting points and facing them, also possible to get positions or close positions to obstacles. It is also possible to get possitions close to interesting points controlling how close one wants it to be to the interesting point, e.g. `0` would mean the position is `0` tiles away of the interesting point, i.e. the position is the interesting point. In general it is possible to know
+
+   * Where are the intersections
    * Where are the T-junctions
    * Where are the X-junctions
    * The angle of the curve
    * Positions near intersections, curves, or obstacles
 
-* Function to apply (random) force to the car, to simulate noise or malfunctioning
+### New Features regarding Reward Function
 
-Here some images of some changes:
+* Easy to modify the reward function
 
-![junc](img/junc.png)
-![t-junc](img/t.png)
-![obstacle](img/obst.png)
+### New Features regarding Agent (i.e. car)
 
-### Maps
+* Control where to position the car at any time of time. There are functions to easily place the car in random positions close to obstacles, inside or outside the track and in next versions the angle in which the car is facing (towards the track or not, or how much towards the car) will be configurable as well.
 
-Some maps
+* Control the speed of the car when placing it in a position. This function is intended to traing the agent in interesting positions and different speed to mimic when the car goes out of track or losses control.
 
-![map](img/map1.png)
-![map](img/map2.png)
+* Function to apply (random) force to the car, to simulate noise or malfunctioning, **To be implemented in coming versions**.
 
-you can have even more complex maps
+### Features regarding debugging
 
-![map](img/map3.png)
-![map](img/map4.png)
-
-even more complex maps are possible but not recomended. Part of the complexity of the maps comes from the change of the number of lanes (which is a parameter) some screenshots of it:
-
-![map](img/lanes1.png)
-![map](img/lanes2.png)
-
-another source of complexity is the obstacles (shown below) which can be configured (the number of obstacle in each track), but to modify their shape and the negative value (in the reward function) would be straight forward by looking at the code
-
-![map](img/obstacles1.png)
-![map](img/obstacles2.png)
-
-
-## Improvements
-
-This are some improvements of the environment, this allows configures each experiments depending on the objective
-
-
-### Set the car in certain position in the map
-
-`place_agent (position)` : this function will place the car in `position`
-
-
-### Set intial speed of agent
-
-`set_speed(speed)`: This function will set the initial of the car
-
-
-### Ger random position in the track
-
-`get_rnd_point_in_track(border)` : returns a random point in the track with the angle equal to the tile of the track, the x position can be randomly in the x (relative) axis of the tile, border=True make sure the x position is enough to make the car fit in the track, otherwise the point can be in the extreme of the track and two wheels will be outside the track
-Returns: [beta, x, y]. 
-
-
-### Extra controls 
-
-During the game, calling `python gym/envs/box2d/car_racing.py` use the following keys to do certain stuff
+* Car can go in reverse, break is `SPACE`
+* During the game, calling `python gym/envs/box2d/car_racing.py` use the following keys to do certain stuff
 
 * `D`: To enter python debug mode
 * `Z`: Zoom in or out
@@ -83,7 +78,19 @@ During the game, calling `python gym/envs/box2d/car_racing.py` use the following
 * `Q`: quit, close game
 
 
-## To Improve (by importance)
+## Useful functions
+
+**This list is far from comprehensive**. This are some improvements of the environment, this allows configures each experiments depending on the objective
+
+
+* Set the car in certain position in the map: `place_agent (position)` : this function will place the car in `position`
+* Set intial speed of agent: `set_speed(speed)`: This function will set the initial of the car
+* Ger random position in the track: `get_rnd_point_in_track(border)` : returns a random point in the track with the angle equal to the tile of the track, the x position can be randomly in the x (relative) axis of the tile, border=True make sure the x position is enough to make the car fit in the track, otherwise the point can be in the extreme of the track and two wheels will be outside the track
+Returns: [beta, x, y]. 
+* Get screenshot of the space in the current step: `screenshot(dest,namefile)`
+
+
+## Things to do / done:
 
 ### high priority: 
 
@@ -92,7 +99,7 @@ During the game, calling `python gym/envs/box2d/car_racing.py` use the following
 - [x] ~~Implement black and white output: use `grayscale` opt in config~~
 - [x] ~~Add small screenshot of what the car is seeing as a function: use `screenshot` func~~
 - [x] ~~Add option to remove bottom panel from state, use `show_info_panel` in config~~
-- [ ] Implement number of frames to return as observations (state)
+- [x] ~~Implement number of frames to return as observations (state), use `frames_per_state` in config~~
 - [ ] Discretise action space
 - [ ] Figure out how to implement the reward efficiently
 - [ ] Detect change of line (DOES NOT MAKE SENSE TO IMPLEMENT RIGHT NOW)
@@ -124,5 +131,6 @@ During the game, calling `python gym/envs/box2d/car_racing.py` use the following
 - [ ] Fix joints of roads in some cases
 - [ ] Change car when not racing
  
----
+--- 
 
+for more information about the environment see the original readme file of the original repo
