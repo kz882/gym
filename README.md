@@ -58,6 +58,12 @@ The map of the track now is configurable but still completely random, now the ma
 ### New Features regarding Reward Function
 
 * Easy to modify the reward function
+* Configure how long the car can be outside track before restarting env
+* Now the reaward function takes into account:
+
+	* Obstacles
+	* (in next versions) The lane in which the car is.
+	* (in next versions) The speed of the car.
 
 ### New Features regarding Agent (i.e. car)
 
@@ -90,7 +96,7 @@ Returns: [beta, x, y].
 * Get screenshot of the space in the current step: `screenshot(dest,namefile)`
 
 
-## Things to do / done:
+## Things to do or done:
 
 ### high priority: 
 
@@ -127,9 +133,9 @@ Returns: [beta, x, y].
 - [ ] Randomize the direction (following the track direction or backwards) in get positions functions
 - [ ] Differentiate y from t junctions
 - [ ] Differentiate x from merge juntions
-- [ ] Add road lines
-- [ ] Fix joints of roads in some cases
-- [ ] Change car when not racing
+- [ ] Add road lines graphically 
+- [ ] Fix joints of roads in some weird cases
+- [ ] Change img of car when not racing
  
 --- 
 
