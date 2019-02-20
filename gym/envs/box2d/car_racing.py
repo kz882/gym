@@ -156,6 +156,9 @@ class CarRacing(gym.Env, EzPickle):
         self.reward = 0.0
         self.prev_reward = 0.0
         self.highest_reward = 0.0
+        self.possible_hard_actions = ("NOTHING", "LEFT", "RIGHT", "ACCELERATE", "BREAK")
+        self.possible_soft_actions = ("NOTHING", "SOFT_LEFT", "HARD_LEFT", "SOFT_RIGHT", "HARD_RIGHT",
+                "SOFT_ACCELERATE", "HARD_ACCELERATE", "SOFT_BREAK", "HARD_BREAK")
 
         # Config
         self.set_config()
@@ -170,6 +173,7 @@ class CarRacing(gym.Env, EzPickle):
             grayscale=True,
             show_info_panel=True,
             frames_per_state=1,
+            discretize_actions='hard',
             allow_reverse=0):
         '''
         Controls some attributes of the game, such as the number of tracks (num_tracks)
@@ -177,44 +181,51 @@ class CarRacing(gym.Env, EzPickle):
         the probability of finding an obstacle (prob_osbtacle).
         Only call this method onceto set the parameters
 
-        num_tracks:       (int 1)    Number of tracks, in {1,2}, 1: simple, 2: complex, you can
-                                     modify the code to allow more than one track, but good beheviour
-                                     is not garanted 
+        num_tracks:        (int 1)       Number of tracks, in {1,2}, 1: simple, 2: complex, you can
+                                         modify the code to allow more than one track, but good beheviour
+                                         is not garanted 
 
-        num_lanes:        (int 1)    Number of lanes in track, > 0 ({1,2})
+        num_lanes:         (int 1)       Number of lanes in track, > 0 ({1,2})
 
-        num_lanes_changes (int 0)    Number of changes from 2 to 1 or viceversa, this 
-                                     is ultimately transform as a probability over the
-                                     total number of points in track
+        num_lanes_changes  (int 0)       Number of changes from 2 to 1 or viceversa, this 
+                                         is ultimately transform as a probability over the
+                                         total number of points in track
 
-        num_obstacles     (flt 0)   The probability of finding an obstacle a point of 
-                                     the track, [0,1]
+        num_obstacles      (flt 0)       The probability of finding an obstacle a point of 
+                                         the track, [0,1]
 
-        max_single_lane   (int 0)    The maximum number of tiles that a single lane road
-                                     can have before becoming two lanes again
+        max_single_lane    (int 0)       The maximum number of tiles that a single lane road
+                                         can have before becoming two lanes again
 
-        allow_reverse     (bool 0)   Allow the car going in reverse, if true key.DOWN goes
-                                     backwards and action_space changes
+        allow_reverse      (bool 0)      Allow the car going in reverse, if true key.DOWN goes
+                                         backwards and action_space changes
 
-        max_time_out      (flt 2.0)  Max time that car is allowed to be outside of track or stoped 
-                                     before reseting the env (sending done=True), if 
-                                     max_time_out == 0 then car can be outside without any problem.
-                                     max_time_out is in "seconds" but given that in training time
-                                     goes faster it is really in 1xFPS (max_time_out = 1/FPS means 
-                                     the car is allow only to be outside the track for one frame.
-                                     Usually FPS is 59, see the constant in this file, but in 
-                                     playing time (runing this file) max_time_out is approximately 
-                                     in seconds to allow you have a sense of the magnitude 
-                                     This is not necessary time of not earning rewards, only time
-                                     outside the track or without moving
+        max_time_out       (flt 2.0)     Max time that car is allowed to be outside of track or stoped 
+                                         before reseting the env (sending done=True), if 
+                                         max_time_out == 0 then car can be outside without any problem.
+                                         max_time_out is in "seconds" but given that in training time
+                                         goes faster it is really in 1xFPS (max_time_out = 1/FPS means 
+                                         the car is allow only to be outside the track for one frame.
+                                         Usually FPS is 59, see the constant in this file, but in 
+                                         playing time (runing this file) max_time_out is approximately 
+                                         in seconds to allow you have a sense of the magnitude 
+                                         This is not necessary time of not earning rewards, only time
+                                         outside the track or without moving
 
-        grayscale         (bool 0)   Whether or not use grayscale for the state representation,
-                                     the state will be 96x96 of values between 0,255 as rbg state
+        grayscale          (bool 0)      Whether or not use grayscale for the state representation,
+                                         the state will be 96x96 of values between 0,255 as rbg state
 
-        show_info_panel   (bool 1)   Whether or not show the info black panel at the bottom of the state
+        show_info_panel    (bool 1)      Whether or not show the info black panel at the bottom of the state
 
-        frames_per_state  (int 1)    The number of concatenated frames for the state, =3 means 
-                                     that the state will be the last 3 frames of the env
+        frames_per_state   (int 1)       The number of concatenated frames for the state, =3 means 
+                                         that the state will be the last 3 frames of the env
+
+        discretize_actions (str "hard")  How to discretize the action space, a value in {None,"soft", "hard"}. 
+                                         None means space is continuous
+                                         "hard" actions are 4 [NOTHING, LEFT, RIGHT, ACCELERATE, BREAK]
+                                         "soft" actions are 7 [NOTHING, SOFT_LEFT, HARD_LEFT, SOFT_RIGHT, HARD_RIGHT,
+                                         SOFT_STRAIGHT, HARD_STRAIGHT, SOFT_BREAK, HARD_BREAK] but "hard method is not
+                                         implemented yet
         '''
         
         # Number of lanes, 1 or 2
@@ -256,9 +267,17 @@ class CarRacing(gym.Env, EzPickle):
             lst = list(range(self.frames_per_state))
             self._update_index = [lst[-1]] + lst[:-1]
 
+        self.discretize_actions = discretize_actions if discretize_actions in [None,"soft","hard"] else "hard"
+
         state_shape = tuple(state_shape)
         # Incorporating reverse now the np.array([-1,0,0]) becomes np.array[-1,-1,0]
-        self.action_space = spaces.Box( np.array([-1,min_speed,0]), np.array([+1,+1,+1]), dtype=np.float32)  # steer, gas, brake
+        if self.discretize_actions == "soft":
+            self.action_space = spaces.Discrete(len(self.possible_soft_actions))
+        elif self.discretize_actions == "hard":
+            self.action_space = spaces.Discrete(len(self.possible_hard_actions))
+        else:
+            self.action_space = spaces.Box( np.array([-1,min_speed,0]), np.array([+1,+1,+1]), dtype=np.float32)  # steer, gas, brake
+
         self.observation_space = spaces.Box(low=0, high=255, shape=state_shape, dtype=np.uint8)
 
 
@@ -817,7 +836,23 @@ class CarRacing(gym.Env, EzPickle):
         else:
             self.state = new_frame
 
+    def _transform_action(self, action):
+        if self.discretize_actions == "soft":
+            raise NotImplementedError
+        elif self.discretize_actions == "hard":
+            # ("NOTHING", "LEFT", "RIGHT", "ACCELERATE", "BREAK")
+            # angle, gas, break
+            if action == 0: action = [ 0, 0, 0.0] # Nothing
+            if action == 1: action = [-1, 0, 0.0] # Left
+            if action == 2: action = [+1, 0, 0.0] # Right
+            if action == 3: action = [ 0,+1, 0.0] # Accelerate
+            if action == 4: action = [ 0, 0, 0.8] # break
+
+        return action
+
     def step(self, action):
+        action = self._transform_action(action)
+
         if action is not None:
             self.car.steer(-action[0])
             self.car.gas(action[1])
@@ -1272,31 +1307,51 @@ class CarRacing(gym.Env, EzPickle):
 
 if __name__=="__main__":
     from pyglet.window import key
-    a = np.array( [0.0, 0.0, 0.0] )
+
+    # whether or not discretize env
+    discretize = "hard" # or "hard", "soft", None
+
+    if discretize == None:
+        a = np.array( [0.0, 0.0, 0.0] )
+    else:
+        a = np.array([0])
     def key_press(k, mod):
         global restart
-        if k==0xff0d: restart = True
-        if k==key.LEFT:  a[0] = -1.0
-        if k==key.RIGHT: a[0] = +1.0
-        if k==key.UP:    a[1] = +1.0
-        if k==key.DOWN:  a[1] = -1.0
-        if k==key.SPACE:  a[2] = +0.8   # set 1.0 for wheels to block to zero rotation
+        if discretize == None:
+            if k==0xff0d: restart = True
+            if k==key.LEFT:  a[0] = -1.0
+            if k==key.RIGHT: a[0] = +1.0
+            if k==key.UP:    a[1] = +1.0
+            if k==key.DOWN:  a[1] = -1.0
+            if k==key.SPACE: a[2] = +0.8   # set 1.0 for wheels to block to zero rotation
+        elif discretize == "hard":
+            if k==0xff0d: restart = True
+            if k==key.LEFT:  a[0] = 1
+            if k==key.RIGHT: a[0] = 2
+            if k==key.UP:    a[0] = 3
+            if k==key.SPACE: a[0] = 4
+        print(a)
     def key_release(k, mod):
-        if k==key.LEFT  and a[0]==-1.0: a[0] = 0
-        if k==key.RIGHT and a[0]==+1.0: a[0] = 0
-        if k==key.UP:    a[1] = 0
-        if k==key.DOWN:  a[1] = 0
-        if k==key.SPACE: a[2] = 0
+        if discretize == None:
+            if k==key.LEFT  and a[0]==-1.0: a[0] = 0
+            if k==key.RIGHT and a[0]==+1.0: a[0] = 0
+            if k==key.UP:    a[1] = 0
+            if k==key.DOWN:  a[1] = 0
+            if k==key.SPACE: a[2] = 0
+        else:
+            a[0] = 0
         if k==key.D:     set_trace()
         if k==key.R:     env.reset()
         if k==key.Z:     env.change_zoom()
         if k==key.Q:     raise KeyboardInterrupt
+
     env = CarRacing()
 
     env.set_config(
             allow_reverse=False, 
             grayscale=1,
             show_info_panel=0,
+            discretize_actions=discretize,
             frames_per_state=4)
 
     env.render()
@@ -1312,10 +1367,12 @@ if __name__=="__main__":
         restart = False
 
         while True:
-            s, r, done, info = env.step(a)
+            if discretize != None: a_tmp = a[0]
+            else: a_tmp = a
+            s, r, done, info = env.step(a_tmp)
             total_reward += r
             if steps % 200 == 0 or done:
-                print("\naction " + str(["{:+0.2f}".format(x) for x in a]))
+                #print("\naction " + str(["{:+0.2f}".format(x) for x in a]))
                 print("step {} total_reward {:+0.2f}".format(steps, total_reward))
                 #import matplotlib.pyplot as plt
                 #plt.imshow(s)
