@@ -24,6 +24,12 @@ The observation space, i.e. the state (the raw pixels of the game), can be:
 * RGB with several contiguous frames, size `NUM_FRAMESx96x96x3` or `NUM_FRAMESx96x96` for grayscale
 * Include or not the information panel containing representations of the speed, direction, etc., size the same size for each case.
 
+some screenshots of some of the possible states (in real size i.e. `96x96`):
+
+![rbg_bar](img/rgb_bar.jpeg)
+![rbg](img/rgb.jpeg)
+![b&w](img/b&w.jpeg)
+
 ### New Features regarding the Map
 
 The map of the track now is configurable but still completely random, now the map can be configurable with
