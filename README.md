@@ -13,7 +13,7 @@ The action space can be:
 
 * Continous (the original one), with min of `[-1,0,0]` and max of `[+1,+1,+1]`.
 * Continous allowing car going backwards (reverse), from `[-1,-1,0]` to `[+1,+1,+1]`.
-* Discrete, the action space is `[TURN_RIGHT, TURN_LEFT, GO_STRAIGHT, BREAK, DO_NOTHING]`
+* Discrete, the action space is `[TURN_LEFT, TURN_RIGHT, ACCELERATE, BREAK, DO_NOTHING]`
 
 ### New Features in `observation_space`
 
@@ -112,7 +112,8 @@ Returns: [beta, x, y].
 - [x] ~~Add small screenshot of what the car is seeing as a function: use `screenshot` func~~
 - [x] ~~Add option to remove bottom panel from state, use `show_info_panel` in config~~
 - [x] ~~Implement number of frames to return as observations (state), use `frames_per_state` in config~~
-- [ ] Discretise action space
+- [x] ~~Hard Discretise action space~~
+- [ ] Soft Discretise action space
 - [ ] Figure out how to implement the reward efficiently
 - [ ] Detect change of line (DOES NOT MAKE SENSE TO IMPLEMENT RIGHT NOW)
 - [ ] Get tile with certain conditions:
