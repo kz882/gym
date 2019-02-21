@@ -113,6 +113,8 @@ Returns: [beta, x, y].
 - [x] ~~Add option to remove bottom panel from state, use `show_info_panel` in config~~
 - [x] ~~Implement number of frames to return as observations (state), use `frames_per_state` in config~~
 - [x] ~~Hard Discretise action space~~
+- [x] ~~Clip reward per episode, use `max/min_episode_reward`~~
+- [ ] Fix sizes to use with cnn and different configs for states
 - [ ] Soft Discretise action space
 - [ ] Figure out how to implement the reward efficiently
 - [ ] Detect change of line (DOES NOT MAKE SENSE TO IMPLEMENT RIGHT NOW)

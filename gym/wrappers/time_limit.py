@@ -66,3 +66,9 @@ class TimeLimit(Wrapper):
             return self.env.set_speed(speed)
         else:
             return NotImplementedError
+
+    def set_config(self, **kwargs):
+        if self.unwrapped.spec.id.lower() == "carracing-v0":
+            return self.env.set_config(**kwargs)
+        else:
+            return NotImplementedError

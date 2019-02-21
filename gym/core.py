@@ -1,3 +1,4 @@
+from pdb import set_trace
 from gym import logger
 
 import gym
