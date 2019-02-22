@@ -123,7 +123,7 @@ class FrictionDetector(contactListener):
 
                     # Cliping reward per expisode
                     reward_episode = np.clip(
-                            reward_episode, self.env.min_episode_reward, self.max_episode_reward)
+                            reward_episode, self.env.min_episode_reward, self.env.max_episode_reward)
                     self.env.reward += reward_episode
                     self.env.tile_visited_count += 1
         else:
