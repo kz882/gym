@@ -969,7 +969,8 @@ class CarRacing(gym.Env, EzPickle):
             for geom in self.viewer.onetime_geoms:
                 geom.render()
             t.disable()
-            self.render_indicators(WINDOW_W, WINDOW_H)  # TODO: find why 2x needed, wtf
+            if self.show_info_panel:
+                self.render_indicators(WINDOW_W, WINDOW_H)  # TODO: find why 2x needed, wtf
             image_data = pyglet.image.get_buffer_manager().get_color_buffer().get_image_data()
             arr = np.fromstring(image_data.data, dtype=np.uint8, sep='')
             arr = arr.reshape(VP_H, VP_W, 4)
@@ -1227,38 +1228,37 @@ class CarRacing(gym.Env, EzPickle):
                 gl.glVertex3f(x+1,y-1,0)
 
     def render_indicators(self, W, H):
-        if self.show_info_panel:
-            gl.glBegin(gl.GL_QUADS)
-            s = W/40.0
-            h = H/40.0
-            gl.glColor4f(0,0,0,1)
-            gl.glVertex3f(W, 0, 0)
-            gl.glVertex3f(W, 5*h, 0)
-            gl.glVertex3f(0, 5*h, 0)
-            gl.glVertex3f(0, 0, 0)
-            def vertical_ind(place, val, color):
-                gl.glColor4f(color[0], color[1], color[2], 1)
-                gl.glVertex3f((place+0)*s, h + h*val, 0)
-                gl.glVertex3f((place+1)*s, h + h*val, 0)
-                gl.glVertex3f((place+1)*s, h, 0)
-                gl.glVertex3f((place+0)*s, h, 0)
-            def horiz_ind(place, val, color):
-                gl.glColor4f(color[0], color[1], color[2], 1)
-                gl.glVertex3f((place+0)*s, 4*h , 0)
-                gl.glVertex3f((place+val)*s, 4*h, 0)
-                gl.glVertex3f((place+val)*s, 2*h, 0)
-                gl.glVertex3f((place+0)*s, 2*h, 0)
-            true_speed = np.sqrt(np.square(self.car.hull.linearVelocity[0]) + np.square(self.car.hull.linearVelocity[1]))
-            vertical_ind(5, 0.02*true_speed, (1,1,1))
-            vertical_ind(7, 0.01*self.car.wheels[0].omega, (0.0,0,1)) # ABS sensors
-            vertical_ind(8, 0.01*self.car.wheels[1].omega, (0.0,0,1))
-            vertical_ind(9, 0.01*self.car.wheels[2].omega, (0.2,0,1))
-            vertical_ind(10,0.01*self.car.wheels[3].omega, (0.2,0,1))
-            horiz_ind(20, -10.0*self.car.wheels[0].joint.angle, (0,1,0))
-            horiz_ind(30, -0.8*self.car.hull.angularVelocity, (1,0,0))
-            gl.glEnd()
-            self.score_label.text = "%04i" % self.reward
-            self.score_label.draw()
+        gl.glBegin(gl.GL_QUADS)
+        s = W/40.0
+        h = H/40.0
+        gl.glColor4f(0,0,0,1)
+        gl.glVertex3f(W, 0, 0)
+        gl.glVertex3f(W, 5*h, 0)
+        gl.glVertex3f(0, 5*h, 0)
+        gl.glVertex3f(0, 0, 0)
+        def vertical_ind(place, val, color):
+            gl.glColor4f(color[0], color[1], color[2], 1)
+            gl.glVertex3f((place+0)*s, h + h*val, 0)
+            gl.glVertex3f((place+1)*s, h + h*val, 0)
+            gl.glVertex3f((place+1)*s, h, 0)
+            gl.glVertex3f((place+0)*s, h, 0)
+        def horiz_ind(place, val, color):
+            gl.glColor4f(color[0], color[1], color[2], 1)
+            gl.glVertex3f((place+0)*s, 4*h , 0)
+            gl.glVertex3f((place+val)*s, 4*h, 0)
+            gl.glVertex3f((place+val)*s, 2*h, 0)
+            gl.glVertex3f((place+0)*s, 2*h, 0)
+        true_speed = np.sqrt(np.square(self.car.hull.linearVelocity[0]) + np.square(self.car.hull.linearVelocity[1]))
+        vertical_ind(5, 0.02*true_speed, (1,1,1))
+        vertical_ind(7, 0.01*self.car.wheels[0].omega, (0.0,0,1)) # ABS sensors
+        vertical_ind(8, 0.01*self.car.wheels[1].omega, (0.0,0,1))
+        vertical_ind(9, 0.01*self.car.wheels[2].omega, (0.2,0,1))
+        vertical_ind(10,0.01*self.car.wheels[3].omega, (0.2,0,1))
+        horiz_ind(20, -10.0*self.car.wheels[0].joint.angle, (0,1,0))
+        horiz_ind(30, -0.8*self.car.hull.angularVelocity, (1,0,0))
+        gl.glEnd()
+        self.score_label.text = "%04i" % self.reward
+        self.score_label.draw()
 
     def get_rnd_point_in_track(self,border=True):
         '''
