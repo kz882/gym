@@ -1,7 +1,7 @@
-# CarRacing-v1 (unofficial)
-an improvement over OpenAI gym Car-Racing-v0
+# CarRacing-v1
+An improvement over OpenAI gym Car-Racing-v0
 
-This repo has improvements on the complexity for CarRacing-v0, which are focus thorwards makeing `Car-Racing` env solvable, it also intended to make the env complex enought to make it ideal to try new more complex tasks. 
+This repo has improvements on the complexity for CarRacing-v0, which are focus torwards making `Car-Racing` env solvable, it s also intended to make the env complex enought to make it ideal to try new more complex tasks and RL problems. 
 
 ## New Features
 
