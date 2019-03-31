@@ -74,6 +74,7 @@ BORDER_NAME    = 'border'
 GRASS_NAME     = 'grass'
 
 # Debug actions
+SHOW_NEXT_N_TILES         = 10       # Show the next N tiles
 SHOW_ENDS_OF_TRACKS       = 0       # Shows with red dots the end of track
 SHOW_START_OF_TRACKS      = 0       # Shows with green dots the end of track
 SHOW_INTERSECTIONS_POINTS = 0       # Shows with yellow dots the intersections of main track
@@ -117,6 +118,8 @@ class FrictionDetector(contactListener):
             self.env.reward += OBSTACLE_VALUE
 
         if begin:
+                if tile.typename == TILE_NAME:
+                    env.add_current_tile(tile.id, tile.lane)
                 obj.tiles.add(tile)
                 #print tile.road_friction, "ADD", len(obj.tiles)
                 if not tile.road_visited:
@@ -130,6 +133,7 @@ class FrictionDetector(contactListener):
                     self.env.tile_visited_count += 1
         else:
             obj.tiles.remove(tile)
+            env.remove_current_tile(tile.id, tile.lane)
             #print tile.road_friction, "DEL", len(obj.tiles) -- should delete to zero when on grass (this works)
 
             # Registering last contact with track
@@ -218,6 +222,8 @@ class CarRacing(gym.Env, EzPickle):
         self.reward = 0.0
         self.prev_reward = 0.0
         self.highest_reward = 0.0
+        self._current_nodes = {} # A dict of dicts, dict[id][lane]=direction you can be in more than one tile at the same time, e.g. intersections
+        self._next_nodes = [] # A list of lists of dictionaries
         self.possible_hard_actions = ("NOTHING", "LEFT", "RIGHT", "ACCELERATE", "BREAK")
         self.possible_soft_actions = ("NOTHING", "SOFT_LEFT", "HARD_LEFT", "SOFT_RIGHT", "HARD_RIGHT",
                 "SOFT_ACCELERATE", "HARD_ACCELERATE", "SOFT_BREAK", "HARD_BREAK")
@@ -327,6 +333,117 @@ class CarRacing(gym.Env, EzPickle):
         '''
         self.car.destroy()
         self.car = Car(self.world, *position, allow_reverse=self.allow_reverse)
+
+    def add_current_tile(self,id,lane):
+        ######## Calculating direction
+        id_relative = id
+        if self.info[id]['track'] > 0:
+            id_relative -= len(self.tracks[self.info[id]['track']-1])
+        next_id = (id_relative + 1) % len(self.tracks[self.info[id]['track']])
+        last_id = (id_relative - 1) % len(self.tracks[self.info[id]['track']])
+        
+        keys = self._current_nodes.keys()
+        #if id-id_relative+next_id in keys:
+        if abs((self.track[id,0,1] - self.car.hull.angle + np.pi/2)%(np.pi*2)) > np.pi :
+            direction = -1
+        else:
+            direction = 1
+
+        ######## Adding it to the current node
+        if id in self._current_nodes.keys():
+            self._current_nodes[id][lane] = direction
+        else:
+            self._current_nodes[id] = {lane:direction}
+        #######
+
+        ###### Removing current new tile from nexts
+        if len(self._next_nodes) > 0:
+            if id in self._next_nodes[0] and lane in self._next_nodes[0][id] \
+                    and self._next_nodes[0][id][lane] == direction:
+                # If the current new tile is a prediction, then there is 
+                # no need to predcit all N next tiles again
+                if len(self._next_nodes[0][id]) > 1:
+                    del self._next_nodes[0][id][lane]
+                else:
+                    del self._next_nodes[0][id]
+            else:
+                # If tile is not the next prediction means that the
+                # car is somewhere else and we need to predict all 10 again
+                self._next_nodes = []
+
+        # Cleaning next_nodes from empty lists
+        self._next_nodes = [item for item in self._next_nodes if len(item) > 0]
+        #######
+
+        ####### predictions
+        while len(self._next_nodes) < SHOW_NEXT_N_TILES:
+            if len(self._next_nodes) == 0:
+                # if there is no prediction
+                elems = self._current_nodes
+            else:
+                # else take the last predictions
+                elems = self._next_nodes[-1]
+            next_nodes = {}
+            for id,vals in elems.items():
+                for lane,direction in vals.items():
+                    tmp_pred = self._get_next_node(id,lane,direction)
+                    for k,v in tmp_pred.items():
+                        if k not in next_nodes: next_nodes[k] = {}
+                        for tmp_lane,tmp_dir in v.items():
+                            next_nodes[k][tmp_lane] = tmp_dir
+
+            self._next_nodes.append(next_nodes)
+        #######
+
+    def remove_current_tile(self,id,lane):
+        if id in self._current_nodes:
+            if len(self._current_nodes[id]) > 1:
+                del self._current_nodes[id][lane]
+            else:
+                del self._current_nodes[id]
+
+    def _get_next_node(self,id,lane,direction): 
+        """
+        this will return a dict of elements, elem is a dict of [id][lane] = direction
+        """
+        # if it is the end of the row or the beginning in the opposite direction
+        if (self.info[id]['end'] == True and direction == 1) or \
+           (self.info[id]['start'] == True and direction == -1):
+            return {}
+        else:
+            # Else calculate the next tile
+            id_relative = id
+            if self.info[id]['track'] > 0:
+                id_relative -= len(self.tracks[self.info[id]['track']-1])
+
+            next_id = (id_relative + direction) % len(self.tracks[self.info[id]['track']]) # TODO direction 0
+
+            # If the next tile is in an intersection add all the following intersections
+            intersection = self.info[id - id_relative + next_id]['intersection_id']
+            next_nodes = {}
+            if intersection != -1:
+                for ids in np.where(self.info['intersection_id'] == intersection)[0]:
+                    next_nodes[ids] = {}
+                    if self.info[ids]['track'] > 0:
+                        if self.info[ids]['end']: 
+                            direction = -1
+                        if self.info[ids]['start']:
+                            direction = -1
+                        next_nodes[ids][1] = direction #TODO get the actual lane and direction
+                    else:
+                        # if it is not end or start but still and intersection then it is in the main track
+                        if ids == next_id:
+                            # if it is the current one keep the direction
+                            next_nodes[ids][1] = direction #TODO get the actual lane and direction
+                        else:
+                            # add both directions
+                            next_nodes[ids][1] = +1 #TODO get the actual lane and direction
+                            next_nodes[ids][1] = -1 #TODO get the actual lane and direction
+            else:
+                if not id-id_relative+next_id in next_nodes.keys():
+                    next_nodes[id-id_relative+next_id] = {}
+                next_nodes[id - id_relative + next_id][lane] = direction
+            return next_nodes
 
     def _get_track(self, CHECKPOINTS, TRACK_RAD=900/SCALE):
 
@@ -460,7 +577,7 @@ class CarRacing(gym.Env, EzPickle):
             t.color = [0.86,0.08,0.23] 
             t.road_friction = 1.0
             t.road_visited  = True
-            t.typename          = OBSTACLE_NAME
+            t.typename = OBSTACLE_NAME
             t.fixtures[0].sensor = True
             self.obstacles_poly.append(( vertices, t.color ))
             self.road.append(t)
@@ -824,8 +941,10 @@ class CarRacing(gym.Env, EzPickle):
                     t.road_visited = False
                     t.typename = TILE_NAME
                     t.road_friction = 1.0
+                    t.id = j
+                    t.lane = lane
                     t.fixtures[0].sensor = True
-                    self.road_poly.append(( vertices, t.color ))
+                    self.road_poly.append(( vertices, t.color, t.id, t.lane ))
                     self.road.append(t)
 
         self._create_obstacles()
@@ -845,6 +964,8 @@ class CarRacing(gym.Env, EzPickle):
         self.prev_reward = 0.0
         self.tile_visited_count = 0
         self.t = 0.0
+        self._current_nodes = {}
+        self._next_nodes = []
         self.road_poly = []
         self.border_poly = []
         self.obstacles_poly = []
@@ -1176,7 +1297,13 @@ class CarRacing(gym.Env, EzPickle):
         Can only be called inside a glBegin
         '''
         # drawing road old way
-        for poly, color in self.road_poly:
+        for poly, color, id, lane in self.road_poly:
+            next_nodes = {k:v for sublist in self._next_nodes for k,v in sublist.items()} #TODO not very efficient
+            next_nodes.update(self._current_nodes)
+
+            if id in next_nodes and lane in next_nodes[id]:
+                color = [c/2 for c in color]
+
             gl.glColor4f(color[0], color[1], color[2], 1)
             for p in poly:
                 gl.glVertex3f(p[0], p[1], 0)
