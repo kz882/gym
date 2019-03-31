@@ -868,8 +868,9 @@ class CarRacing(gym.Env, EzPickle):
     def _create_track(self):
 
         tracks = []
+        cp = 12
         for _ in range(self.num_tracks):
-            track = self._get_track(12)
+            track = self._get_track(cp*_)
             if not track or len(track) == 0: return track
             track = np.array(track)
             tracks.append(track)
@@ -1291,21 +1292,28 @@ class CarRacing(gym.Env, EzPickle):
                 if sec1 is not False and sec2 is not False:
                     max_min_d = 0
                     remove = False
+                    min_distances = []
                     for point in sec1[:,1]:
                         dist = np.linalg.norm(sec2[:,1] - point, axis=1).min()
-                        max_min_d = dist if max_min_d < dist else max_min_d
+                        min_distances.append(dist)
+                        #min_d = dist if max_min_d < dist else max_min_d
+
                     # TODO here the roads that are very very close to the other 
                     # track or that for several tiles keeps very close to the 
                     # road can be removed
-                    if max_min_d < THRESHOLD*2: remove = True
-                    
+                    min_distances = np.array(min_distances)
+                    if min_distances.max() < THRESHOLD*2: remove = True
+                    elif len(min_distances) > 25 and (min_distances[10:-10].min() < TRACK_WIDTH*3): remove = True
+                    elif len(min_distances) < 15: remove = True
+                    elif len(min_distances) > 50 and (min_distances < TRACK_WIDTH*2).sum() > 50: 
+                        remove = True
+
                     # Removing tiles
                     if remove:
                         for point in sec2:
                             idx = np.all(track2[:,:,[2,3]] == point, axis=(1,2))
                             removed_idx.update(np.where(idx)[0])
                     else:
-                        # TODO save where the connections belong  
                         key = np.where(
                                 np.all(track1[:,:,[2,3]] == sec1[0], axis=(1,2)))[0]
                         val = np.where(
