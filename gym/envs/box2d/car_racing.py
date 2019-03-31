@@ -1541,10 +1541,20 @@ class CarRacing(gym.Env, EzPickle):
 
         return [angle,x,y]
 
+    def switch_intersection_points(self):
+        global SHOW_INTERSECTION_POINTS
+        SHOW_INTERSECTION_POINTS += 1
+        SHOW_INTERSECTION_POINTS %= 2
+
     def switch_intersection_groups(self):
         global SHOW_GROUP_INTERSECTIONS
         SHOW_GROUP_INTERSECTIONS += 1
         SHOW_GROUP_INTERSECTIONS %= 2
+
+    def switch_xt_intersections(self):
+        global SHOW_XT_JUNCTIONS
+        SHOW_XT_JUNCTIONS += 1
+        SHOW_XT_JUNCTIONS %= 2
         
     def switch_end_of_track(self):
         global SHOW_ENDS_OF_TRACKS
@@ -1600,6 +1610,8 @@ if __name__=="__main__":
         if k==key.R:     env.reset()
         if k==key.Z:     env.change_zoom()
         if k==key.G:     env.switch_intersection_groups()
+        if k==key.I:     env.switch_intersection_points()
+        if k==key.X:     env.switch_xt_intersections()
         if k==key.E:     env.switch_end_of_track()
         if k==key.S:     env.switch_start_of_track()
         if k==key.Q:     sys.exit()
