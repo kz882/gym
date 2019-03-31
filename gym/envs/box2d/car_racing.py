@@ -2,7 +2,7 @@ import sys, math
 import numpy as np
 from pdb import set_trace
 from PIL import Image
-from copy import copy
+from copy import copy, deepcopy
 import os
 
 import Box2D
@@ -386,11 +386,19 @@ class CarRacing(gym.Env, EzPickle):
             next_nodes = {}
             for id,vals in elems.items():
                 for lane,direction in vals.items():
-                    tmp_pred = self._get_next_node(id,lane,direction)
-                    for k,v in tmp_pred.items():
-                        if k not in next_nodes: next_nodes[k] = {}
-                        for tmp_lane,tmp_dir in v.items():
-                            next_nodes[k][tmp_lane] = tmp_dir
+                    tmp_preds = [] # This is only used in the case of direction 0,
+                    # direction zero means you can take the two directions, that only
+                    # happens at an intersection
+                    if direction == 0:
+                        tmp_preds.append(self._get_next_node(id,lane,+1))
+                        tmp_preds.append(self._get_next_node(id,lane,-1))
+                    else:
+                        tmp_preds.append(self._get_next_node(id,lane,direction))
+                    for tmp_pred in tmp_preds:
+                        for k,v in tmp_pred.items():
+                            if k not in next_nodes: next_nodes[k] = {}
+                            for tmp_lane,tmp_dir in v.items():
+                                next_nodes[k][tmp_lane] = tmp_dir
 
             self._next_nodes.append(next_nodes)
         #######
@@ -401,6 +409,12 @@ class CarRacing(gym.Env, EzPickle):
                 del self._current_nodes[id][lane]
             else:
                 del self._current_nodes[id]
+            if len(self._current_nodes) == 0:
+                self._next_nodes = []
+
+    def _update_predictions(self):
+        self._trail_nodes = {k:v for l in self._next_nodes for k,v in l.items()}
+        self._trail_nodes.update(self._current_nodes)
 
     def _get_next_node(self,id,lane,direction): 
         """
@@ -422,23 +436,24 @@ class CarRacing(gym.Env, EzPickle):
             intersection = self.info[id - id_relative + next_id]['intersection_id']
             next_nodes = {}
             if intersection != -1:
-                for ids in np.where(self.info['intersection_id'] == intersection)[0]:
-                    next_nodes[ids] = {}
-                    if self.info[ids]['track'] > 0:
-                        if self.info[ids]['end']: 
+                for tmp_id in np.where(self.info['intersection_id'] == intersection)[0]:
+                    next_nodes[tmp_id] = {}
+                    if self.info[tmp_id]['track'] > 0:
+                        if self.info[tmp_id]['end']: 
                             direction = -1
-                        if self.info[ids]['start']:
+                        if self.info[tmp_id]['start']:
                             direction = -1
-                        next_nodes[ids][1] = direction #TODO get the actual lane and direction
+                        next_nodes[tmp_id][1] = direction 
+                        next_nodes[tmp_id][0] = direction
                     else:
                         # if it is not end or start but still and intersection then it is in the main track
-                        if ids == next_id:
-                            # if it is the current one keep the direction
-                            next_nodes[ids][1] = direction #TODO get the actual lane and direction
+                        if tmp_id == next_id:
+                            # if it is the current one keep the direction and lane
+                            next_nodes[tmp_id][lane] = direction 
                         else:
-                            # add both directions
-                            next_nodes[ids][1] = +1 #TODO get the actual lane and direction
-                            next_nodes[ids][1] = -1 #TODO get the actual lane and direction
+                            # add both directions and lanes
+                            next_nodes[tmp_id][1] = 0
+                            next_nodes[tmp_id][0] = 0
             else:
                 if not id-id_relative+next_id in next_nodes.keys():
                     next_nodes[id-id_relative+next_id] = {}
@@ -1251,8 +1266,8 @@ class CarRacing(gym.Env, EzPickle):
             removed_tmp = np.array(list(removed_idx))
             intersection_dict = {}
 
-            # Remove keys which are to close
-            keys = [intersection_keys[0]]
+            # Remove keys which are to close TODO uncomment
+            keys = [deepcopy(intersection_keys[0])]
             del intersection_keys[0]
             for k in intersection_keys:
                 val = track1[k,1,[2,3]]
@@ -1271,14 +1286,17 @@ class CarRacing(gym.Env, EzPickle):
                 tmp = track1[intersection_keys][:,1,[2,3]]
                 elm = track2[val-len(track1),1,[2,3]]
                 d = np.linalg.norm(tmp-elm,axis=1)
-                k = intersection_keys[d.argmin()] 
+                if d.min() > TRACK_WIDTH*2:
+                    print("the closest intersection is too far away")
+                    #return False
+                else:
+                    k = intersection_keys[d.argmin()] 
+                    
+                    if k in intersection_dict.keys(): pass
+                    else: 
+                        intersection_dict[k] = []
 
-                
-                if k in intersection_dict.keys(): pass
-                else: 
-                    intersection_dict[k] = []
-
-                intersection_dict[k].append(val)
+                    intersection_dict[k].append(val)
             
             self.intersections = intersections
             self.intersection_dict = intersection_dict
@@ -1298,10 +1316,7 @@ class CarRacing(gym.Env, EzPickle):
         '''
         # drawing road old way
         for poly, color, id, lane in self.road_poly:
-            next_nodes = {k:v for sublist in self._next_nodes for k,v in sublist.items()} #TODO not very efficient
-            next_nodes.update(self._current_nodes)
-
-            if id in next_nodes and lane in next_nodes[id]:
+            if id in self._trail_nodes and lane in self._trail_nodes[id]:
                 color = [c/2 for c in color]
 
             gl.glColor4f(color[0], color[1], color[2], 1)
@@ -1334,6 +1349,8 @@ class CarRacing(gym.Env, EzPickle):
                 gl.glVertex3f(k*x + 0, k*y + k, 0)
                 gl.glVertex3f(k*x + k, k*y + k, 0)
 
+        
+        self._update_predictions()
         self._render_tiles()
         self._render_obstacles()
 
@@ -1404,6 +1421,7 @@ class CarRacing(gym.Env, EzPickle):
             ids.remove(-1)
 
             for id in ids:
+                np.random.seed(id)
                 r = np.random.uniform(size=3)
                 for elem in self.track[self.info['intersection_id'] == id]:
                     x,y = elem[1,2:]
