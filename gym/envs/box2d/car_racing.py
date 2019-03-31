@@ -86,6 +86,11 @@ SHOW_AXIS                 = 0       # Draws two lines where the x and y axis are
 ZOOM_OUT                  = 0       # Shows maps in general and does not do zoom
 if ZOOM_OUT: ZOOM         = 0.25    # Complementary to ZOOM_OUT
 
+# This will forbid predicting turns that has the oposite direction of the car 
+# do not modify it if you dont know what you are doing, this can have slight changes
+# in the behaviour of the game and you will not realise 
+FORBID_HARD_TURNS_IN_INTERSECTIONS = False 
+
 class FrictionDetector(contactListener):
     def __init__(self, env):
         contactListener.__init__(self)
@@ -441,10 +446,16 @@ class CarRacing(gym.Env, EzPickle):
                     if self.info[tmp_id]['track'] > 0:
                         if self.info[tmp_id]['end']: 
                             direction = -1
-                        if self.info[tmp_id]['start']:
-                            direction = -1
-                        next_nodes[tmp_id][1] = direction 
-                        next_nodes[tmp_id][0] = direction
+                        elif self.info[tmp_id]['start']:
+                            direction = +1
+                        else:
+                            if tmp_id != id-id_relative+next_id:
+                                direction = 0
+                        if any(self.info[list(self._current_nodes.keys())]['track'] > 0):
+                            next_nodes[tmp_id][lane] = direction
+                        else:
+                            next_nodes[tmp_id][1] = direction 
+                            next_nodes[tmp_id][0] = direction
                     else:
                         # if it is not end or start but still and intersection then it is in the main track
                         if tmp_id == next_id:
@@ -458,6 +469,32 @@ class CarRacing(gym.Env, EzPickle):
                 if not id-id_relative+next_id in next_nodes.keys():
                     next_nodes[id-id_relative+next_id] = {}
                 next_nodes[id - id_relative + next_id][lane] = direction
+
+            # remove nodes that have a complementary directions
+            for k,lanes in deepcopy(list(next_nodes.items())):
+                for lane, direction in lanes.items():
+                    # get direction of tile + (2pi if dir == -1)
+                    # if new direction is complementary remove it
+                    remove = False
+                    if FORBID_HARD_TURNS_IN_INTERSECTIONS:
+                        #This will avoid prediction any road that is almost 180 +/- 45 degrees opposite from the direction of the car 
+                        direction_tmp = self.track[k,0,1]
+                        if direction == -1:
+                            direction_tmp += np.pi
+                        direction_tmp %= (2*np.pi)
+
+                        if (direction_tmp - (self.car.hull.angle+np.pi) + np.pi/4)%(np.pi*2) < np.pi/2 :
+                            remove = True
+                    else:
+                        # forbid returning 
+                        if k in self._current_nodes:
+                            remove = True
+
+                    if remove:
+                        if len(next_nodes[k]) == 1:
+                            del next_nodes[k]
+                        else:
+                            del next_nodes[k][lane]
             return next_nodes
 
     def _get_track(self, CHECKPOINTS, TRACK_RAD=900/SCALE):
