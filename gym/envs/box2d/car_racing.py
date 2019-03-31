@@ -77,7 +77,7 @@ GRASS_NAME     = 'grass'
 SHOW_NEXT_N_TILES         = 10       # Show the next N tiles
 SHOW_ENDS_OF_TRACKS       = 0       # Shows with red dots the end of track
 SHOW_START_OF_TRACKS      = 0       # Shows with green dots the end of track
-SHOW_INTERSECTIONS_POINTS = 0       # Shows with yellow dots the intersections of main track
+SHOW_INTERSECTION_POINTS  = 1       # Shows with yellow dots the intersections of main track
 SHOW_GROUP_INTERSECTIONS  = 1       # Shows each group of intersections in its own hippie color
 SHOW_XT_JUNCTIONS         = 0       # Shows in dark and light green the t and x junctions
 SHOW_JOINTS               = 0       # Shows joints in white
@@ -621,10 +621,6 @@ class CarRacing(gym.Env, EzPickle):
         info['ang_class'] = np.nan
         info['intersection_id'] = -1
 
-        for k,v in self.intersection_dict.items():
-            info['intersection_id'][[k]+v] = k
-        del self.intersection_dict
-
         for i in range(len(info)):
             info[i]['lanes'] = [True, True]
 
@@ -744,6 +740,36 @@ class CarRacing(gym.Env, EzPickle):
                     angles[max_rel_idx] = 0.0
 
         info['angle'][max_idxs] = self.track[max_idxs,0,1] - self.track[max_idxs,1,1]
+        
+
+        ######### populating intersection_id
+        intersection_dict = {}
+
+        # Remove keys which are to close
+        intersection_keys = np.where(info['intersection'])[0]
+        intersection_vals = np.where((info['x']) | (info['t']))[0]
+            
+        for val in intersection_vals:
+            tmp = self.track[intersection_keys][:,1,2:]
+            elm = self.track[val,1,2:]
+            d = np.linalg.norm(tmp-elm,axis=1)
+            if d.min() > TRACK_WIDTH*2:
+                print("the closest intersection is too far away")
+            else:
+                k = intersection_keys[d.argmin()] 
+                
+                if k in intersection_dict.keys(): pass
+                else: 
+                    intersection_dict[k] = []
+
+                intersection_dict[k].append(val)
+        
+        self.intersection_dict = intersection_dict
+
+        for k,v in self.intersection_dict.items():
+            info['intersection_id'][[k]+v] = k
+        del self.intersection_dict
+        ##############################################
         
         self.info = info
 
@@ -1261,46 +1287,7 @@ class CarRacing(gym.Env, EzPickle):
 
             track2 = np.delete(track2, list(removed_idx), axis=0) # efficient way to delete them from np.array
 
-            ##############################################
-            # Correct group intersections by deleted items
-            removed_tmp = np.array(list(removed_idx))
-            intersection_dict = {}
-
-            # Remove keys which are to close TODO uncomment
-            keys = [deepcopy(intersection_keys[0])]
-            del intersection_keys[0]
-            for k in intersection_keys:
-                val = track1[k,1,[2,3]]
-                tmp = track1[keys][:,1,[2,3]]
-
-                d = np.linalg.norm(tmp-val,axis=1)
-                invalid = (d <= TRACK_WIDTH).sum() > 0
-                if not invalid: keys.append(k)
-            intersection_keys = keys
-            del keys
-                
-            for val in intersection_vals:
-                # Get the closest key
-                val -= (removed_tmp <= val-len(track1)).sum()
-
-                tmp = track1[intersection_keys][:,1,[2,3]]
-                elm = track2[val-len(track1),1,[2,3]]
-                d = np.linalg.norm(tmp-elm,axis=1)
-                if d.min() > TRACK_WIDTH*2:
-                    print("the closest intersection is too far away")
-                    #return False
-                else:
-                    k = intersection_keys[d.argmin()] 
-                    
-                    if k in intersection_dict.keys(): pass
-                    else: 
-                        intersection_dict[k] = []
-
-                    intersection_dict[k].append(val)
-            
             self.intersections = intersections
-            self.intersection_dict = intersection_dict
-            ##############################################
             
             if len(track1) == 0 or len(track2) == 0:
                 return False
@@ -1408,7 +1395,7 @@ class CarRacing(gym.Env, EzPickle):
                 gl.glVertex3f(x-2,y-2,0)
                 gl.glVertex3f(x+2,y-2,0)
 
-        if SHOW_INTERSECTIONS_POINTS:
+        if SHOW_INTERSECTION_POINTS:
             for x,y in self.track[self.info['intersection']][:,1,2:]:
                 gl.glColor4f(1, 1, 0, 1)
                 gl.glVertex3f(x+1,y+1,0)
@@ -1554,6 +1541,21 @@ class CarRacing(gym.Env, EzPickle):
 
         return [angle,x,y]
 
+    def switch_intersection_groups(self):
+        global SHOW_GROUP_INTERSECTIONS
+        SHOW_GROUP_INTERSECTIONS += 1
+        SHOW_GROUP_INTERSECTIONS %= 2
+        
+    def switch_end_of_track(self):
+        global SHOW_ENDS_OF_TRACKS
+        SHOW_ENDS_OF_TRACKS += 1
+        SHOW_ENDS_OF_TRACKS %= 2
+
+    def switch_start_of_track(self):
+        global SHOW_START_OF_TRACKS
+        SHOW_START_OF_TRACKS += 1
+        SHOW_START_OF_TRACKS %= 2
+
     def change_zoom(self):
         global ZOOM_OUT, ZOOM
         ZOOM_OUT = (ZOOM_OUT+1)%2
@@ -1597,6 +1599,9 @@ if __name__=="__main__":
         if k==key.D:     set_trace()
         if k==key.R:     env.reset()
         if k==key.Z:     env.change_zoom()
+        if k==key.G:     env.switch_intersection_groups()
+        if k==key.E:     env.switch_end_of_track()
+        if k==key.S:     env.switch_start_of_track()
         if k==key.Q:     sys.exit()
 
     env = CarRacing(
