@@ -1551,12 +1551,16 @@ class CarRacing(gym.Env, EzPickle):
 
     def get_position_near_junction(self,type_junction, tiles_before):
         '''
-        type_junction (str) : 't' or 'x' so far
+        type_junction (str) : 't', 'x' or 'xt' so far
         tiles_before  (int) : number of tiles before the t junction, can be
                               negative as well
         '''
-        if (self.info[type_junction] == True).sum() > 0:
-            idx = np.random.choice(np.where(self.info[type_junction] == True)[0])
+        if type_junction == 'xt':
+            filter = (self.info['x'] == True) | (self.info['t'] == True)
+        else:
+            filter = self.info[type_junction] == True
+        if filter.sum() > 0:
+            idx = np.random.choice(np.where(filter)[0])
             idx_relative = idx - (self.info['track'] < self.info[idx]['track']).sum()
             track = self.track[self.info['track'] == self.info[idx]['track']]
             idx_general = (idx_relative + tiles_before)%len(track) + (self.info['track'] < self.info[idx]['track']).sum()
