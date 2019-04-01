@@ -861,6 +861,7 @@ class CarRacing(gym.Env, EzPickle):
             for num_track in range(self.num_tracks):
                 for lane in range(self.num_lanes):
                     for i in range(10):
+                        i %= len(self.tracks[num_track])
                         self.info[self.info['track'] == num_track][+i]['lanes'][lane] = True
                         self.info[self.info['track'] == num_track][-i]['lanes'][lane] = True
 
