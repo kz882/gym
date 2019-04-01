@@ -77,8 +77,8 @@ GRASS_NAME     = 'grass'
 SHOW_NEXT_N_TILES         = 10       # Show the next N tiles
 SHOW_ENDS_OF_TRACKS       = 0       # Shows with red dots the end of track
 SHOW_START_OF_TRACKS      = 0       # Shows with green dots the end of track
-SHOW_INTERSECTION_POINTS  = 1       # Shows with yellow dots the intersections of main track
-SHOW_GROUP_INTERSECTIONS  = 1       # Shows each group of intersections in its own hippie color
+SHOW_INTERSECTION_POINTS  = 0       # Shows with yellow dots the intersections of main track
+SHOW_GROUP_INTERSECTIONS  = 0       # Shows each group of intersections in its own hippie color
 SHOW_XT_JUNCTIONS         = 0       # Shows in dark and light green the t and x junctions
 SHOW_JOINTS               = 0       # Shows joints in white
 SHOW_TURNS                = 0       # Shows the 10 hardest turns
@@ -124,7 +124,7 @@ class FrictionDetector(contactListener):
 
         if begin:
                 if tile.typename == TILE_NAME:
-                    env.add_current_tile(tile.id, tile.lane)
+                    self.env.add_current_tile(tile.id, tile.lane)
                 obj.tiles.add(tile)
                 #print tile.road_friction, "ADD", len(obj.tiles)
                 if not tile.road_visited:
@@ -138,7 +138,7 @@ class FrictionDetector(contactListener):
                     self.env.tile_visited_count += 1
         else:
             obj.tiles.remove(tile)
-            env.remove_current_tile(tile.id, tile.lane)
+            self.env.remove_current_tile(tile.id, tile.lane)
             #print tile.road_friction, "DEL", len(obj.tiles) -- should delete to zero when on grass (this works)
 
             # Registering last contact with track
@@ -1618,12 +1618,16 @@ class CarRacing(gym.Env, EzPickle):
         if ZOOM_OUT: ZOOM = 0.25
         else:        ZOOM = 2.7
 
-if __name__=="__main__":
+def play(env):
+    """
+    run this function in order to create a window and be able to play
+    this environment.
+    
+    env:        CarRacing env
+    """
     from pyglet.window import key
 
-    # whether or not discretize env
-    discretize = None # or "hard", "soft", None
-
+    discretize = env.discretize_actions
     if discretize == None:
         a = np.array( [0.0, 0.0, 0.0] )
     else:
@@ -1662,16 +1666,6 @@ if __name__=="__main__":
         if k==key.S:     env.switch_start_of_track()
         if k==key.Q:     sys.exit()
 
-    env = CarRacing(
-            allow_reverse=False, 
-            grayscale=0,
-            show_info_panel=1,
-            discretize_actions=discretize,
-            num_tracks=2,
-            num_lanes=2,
-            num_lanes_changes=4,
-            max_time_out=0,
-            frames_per_state=4)
 
     env.render()
     record_video = False
@@ -1710,3 +1704,19 @@ if __name__=="__main__":
                     pass
 
     env.close()
+
+if __name__=="__main__":
+
+    env = CarRacing(
+            allow_reverse=False, 
+            grayscale=0,
+            show_info_panel=1,
+            discretize_actions=None,
+            num_tracks=2,
+            num_lanes=2,
+            num_lanes_changes=4,
+            max_time_out=0,
+            frames_per_state=4)
+
+    play(env)
+

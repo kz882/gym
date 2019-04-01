@@ -101,6 +101,18 @@ The map of the track now is configurable but still completely random, now the ma
 Returns: [beta, x, y]. 
 * Get screenshot of the space in the current step: `screenshot(dest,namefile)`
 
+## List
+
+| *Name* | *params* | *Description* |
+| --- | ---| --- |
+| `play` | `env,discretize` | Opens a windows in which you can play this game |
+| `set_speed` | `speed` | Set the speed of the car |
+| `place_agent` | `position` | Set the agent in `position` |
+| `screenshot` | `dest, name` | Saves the current state/observations of the agent in `dest` with name `name` |
+| `get_rnd_point_in_track` | `border` | Gets a random position inside the track (touching or not the border) |
+| `get_position_near_junction` | `type_junction, tiles_before` | Returns a position `tiles_before` tiles before the `type_junction` junction |
+| `get_position_outside` | `distance` | Returns a position outside the track `distance` meters far from track |
+
 
 ## Things to do or done:
 
