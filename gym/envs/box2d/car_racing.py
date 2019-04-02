@@ -316,13 +316,15 @@ class CarRacing(gym.Env, EzPickle):
 
     def set_velocity(self, velocity=[0.0,0.0]):
         self.car.hull.linearVelocity.Set(velocity[0],velocity[1])
+        for w in self.car.wheels:
+            w.linearVelocity = velocity
+            w.omega = np.linalg.norm(velocity)
 
     def set_speed(self, speed):
         ang = self.car.hull.angle + math.pi/2
         velocity_x = math.cos(ang)*speed
         velocity_y = math.sin(ang)*speed
         self.set_velocity([velocity_x, velocity_y])
-
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -1133,8 +1135,14 @@ class CarRacing(gym.Env, EzPickle):
         if self.viewer is None:
             from gym.envs.classic_control import rendering
             self.viewer = rendering.Viewer(WINDOW_W, WINDOW_H)
-            self.score_label = pyglet.text.Label('0000', font_size=36,
-                x=20, y=WINDOW_H*2.5/40.00, anchor_x='left', anchor_y='center',
+            self.score_label = pyglet.text.Label('Score: 0000', font_size=20,
+                x=20, y=WINDOW_H*1.5/40.00, anchor_x='left', anchor_y='center',
+                color=(255,255,255,255))
+            self.speed_label = pyglet.text.Label('Speed: 000', font_size=20,
+                x=20, y=WINDOW_H*3.7/40.00, anchor_x='left', anchor_y='center',
+                color=(255,255,255,255))
+            self.angle_label = pyglet.text.Label('Angle: 000', font_size=20,
+                x=250, y=WINDOW_H*3.7/40.00, anchor_x='left', anchor_y='center',
                 color=(255,255,255,255))
             self.transform = rendering.Transform()
 
@@ -1144,6 +1152,7 @@ class CarRacing(gym.Env, EzPickle):
             zoom = 0.1*SCALE*max(1-self.t, 0) + ZOOM*SCALE*min(self.t, 1)   # Animate zoom first second
         else:
             zoom = ZOOM*SCALE
+
         zoom_state  = ZOOM*SCALE*STATE_W/WINDOW_W
         zoom_video  = ZOOM*SCALE*VIDEO_W/WINDOW_W
         scroll_x = self.car.hull.position[0]
@@ -1514,16 +1523,20 @@ class CarRacing(gym.Env, EzPickle):
             gl.glVertex3f((place+val)*s, 2*h, 0)
             gl.glVertex3f((place+0)*s, 2*h, 0)
         true_speed = np.sqrt(np.square(self.car.hull.linearVelocity[0]) + np.square(self.car.hull.linearVelocity[1]))
-        vertical_ind(5, 0.02*true_speed, (1,1,1))
-        vertical_ind(7, 0.01*self.car.wheels[0].omega, (0.0,0,1)) # ABS sensors
-        vertical_ind(8, 0.01*self.car.wheels[1].omega, (0.0,0,1))
-        vertical_ind(9, 0.01*self.car.wheels[2].omega, (0.2,0,1))
-        vertical_ind(10,0.01*self.car.wheels[3].omega, (0.2,0,1))
-        horiz_ind(20, -10.0*self.car.wheels[0].joint.angle, (0,1,0))
-        horiz_ind(30, -0.8*self.car.hull.angularVelocity, (1,0,0))
+        vertical_ind(21, 0.02*true_speed, (1,1,1))
+        vertical_ind(22, 0.01*self.car.wheels[0].omega, (0.0,0,1)) # ABS sensors
+        vertical_ind(23, 0.01*self.car.wheels[1].omega, (0.0,0,1))
+        vertical_ind(24, 0.01*self.car.wheels[2].omega, (0.2,0,1))
+        vertical_ind(25,0.01*self.car.wheels[3].omega, (0.2,0,1))
+        horiz_ind(30, -5.0*self.car.wheels[0].joint.angle, (0,1,0))
+        horiz_ind(36, -0.4*self.car.hull.angularVelocity, (1,0,0))
         gl.glEnd()
-        self.score_label.text = "%04i" % self.reward
+        self.score_label.text = "Score: %04i" % self.reward
+        self.speed_label.text = "Speed: %0.2f" % np.linalg.norm(self.car.hull.linearVelocity)
+        self.angle_label.text = "Angle: %0.2f" % self.car.wheels[0].joint.angle
         self.score_label.draw()
+        self.speed_label.draw()
+        self.angle_label.draw()
 
     def get_rnd_point_in_track(self,border=True):
         '''
