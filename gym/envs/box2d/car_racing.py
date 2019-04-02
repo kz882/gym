@@ -366,25 +366,15 @@ class CarRacing(gym.Env, EzPickle):
             self._current_nodes[id] = {lane:direction}
         #######
 
-        ###### Removing current new tile from nexts
-        if len(self._next_nodes) > 0:
-            if id in self._next_nodes[0] and lane in self._next_nodes[0][id] \
-                    and self._next_nodes[0][id][lane] == direction:
-                # If the current new tile is a prediction, then there is 
-                # no need to predcit all N next tiles again
-                if len(self._next_nodes[0][id]) > 1:
-                    del self._next_nodes[0][id][lane]
-                else:
-                    del self._next_nodes[0][id]
-            else:
-                # If tile is not the next prediction means that the
-                # car is somewhere else and we need to predict all 10 again
-                self._next_nodes = []
+        self._remove_prediction(id,lane,direction)
 
         # Cleaning next_nodes from empty lists
         self._next_nodes = [item for item in self._next_nodes if len(item) > 0]
-        #######
 
+        # Make sure we have SHOW_NEXT_N_TILES predictions
+        self._check_predictions()
+
+    def _check_predictions(self):
         ####### predictions
         while len(self._next_nodes) < SHOW_NEXT_N_TILES:
             if len(self._next_nodes) == 0:
@@ -411,7 +401,24 @@ class CarRacing(gym.Env, EzPickle):
                                 next_nodes[k][tmp_lane] = tmp_dir
 
             self._next_nodes.append(next_nodes)
-        #######
+
+
+    def _remove_prediction(self, id, lane, direction):
+        ###### Removing current new tile from nexts
+        if len(self._next_nodes) > 0:
+            if id in self._next_nodes[0] and lane in self._next_nodes[0][id] \
+                    and self._next_nodes[0][id][lane] == direction:
+                # If the current new tile is a prediction, then there is 
+                # no need to predcit all N next tiles again
+                if len(self._next_nodes[0][id]) > 1:
+                    del self._next_nodes[0][id][lane]
+                else:
+                    del self._next_nodes[0][id]
+            else:
+                # If tile is not the next prediction means that the
+                # car is somewhere else and we need to predict all 10 again
+                self._next_nodes = []
+
 
     def remove_current_tile(self,id,lane):
         if id in self._current_nodes:
@@ -1553,11 +1560,15 @@ class CarRacing(gym.Env, EzPickle):
         _,beta,x,y = self._get_rnd_position_inside_lane(idx,border)
         return [beta, x, y]
 
-    def _get_rnd_position_inside_lane(self,idx,border=True):
+    def _get_rnd_position_inside_lane(self,idx,border=True,direction=1):
         '''
         idx of tile
+        direction: -1 if want it going in the opposite direction
         '''
         alpha, beta, x, y = self.track[idx,1,:]
+        if direction == -1:
+            alpha+=np.pi
+            beta+=np.pi
         r,l = True, True
         if self.num_lanes > 1:
             l,r = self.info[idx]['lanes']
