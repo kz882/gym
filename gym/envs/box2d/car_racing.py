@@ -509,6 +509,77 @@ class CarRacing(gym.Env, EzPickle):
                             del next_nodes[k][lane]
             return next_nodes
 
+    def _to_relative(self,id):
+        return id - (self.info['track'] < self.info[id]['track']).sum()
+
+    def understand_intersection(self,node_id, direction):
+        """
+        This method will return a dictionary of the form 
+        {'right': node_id, 'left': node_id, 'straight': node_id}
+        
+        Direction is -1 or 1
+        """
+        intersection = {'left':None,'right':None,'straight':None}
+        relative_id = self._to_relative(node_id)
+        track_id = self.info[node_id]['track']
+        _,angle,x,y = self.track[node_id][1]
+        
+        angle = (angle + direction*np.pi/2)%(np.pi*2)
+        
+        # Populating straight node
+        if self.info[node_id]['t'] and self.info[node_id]['track'] > 0:
+            intersection['straight'] = None
+        else:
+            s_node = (relative_id + direction) % len(self.tracks[self.info[node_id]['track']])
+            s_node = node_id - relative_id + s_node
+            intersection['straight'] = s_node
+
+        # Populating left and right node
+        nodes = np.where(
+            (self.info['intersection_id'] == self.info[node_id]['intersection_id']) & \
+            (self.info['track'] != track_id))[0]
+        
+        candidates = []
+        for node in nodes:
+            if self.info[node]['track'] == 0:
+                candidates.append((node+1)%len(self.tracks[0]))
+                candidates.append((node-1)%len(self.tracks[0]))
+            else:
+                if self.info[node]['end'] or not self.info[node]['start']:
+                    relative_candidate = self._to_relative(node)
+                    next_relative_candidate = (relative_candidate -1)\
+                            %len(self.tracks[self.info[node]['track']])
+                    candidates.append(node-relative_candidate+next_relative_candidate)
+                elif self.info[node]['start'] or not self.info[node]['end']:
+                    relative_candidate = self._to_relative(node)
+                    next_relative_candidate = (relative_candidate +1)\
+                            %len(self.tracks[self.info[node]['track']])
+                    candidates.append(node-relative_candidate+next_relative_candidate)
+
+        angles = []
+        for tmp_id in candidates:
+            x1,y1 = self.track[tmp_id][0,2:]
+            tmp_angle = math.atan2(y1-y,x1-x)
+            tmp_angle -= angle
+            tmp_angle %= (np.pi*2)
+            tmp_angle -= np.pi
+            angles.append(tmp_angle)
+            if tmp_angle > 0:
+                intersection['left'] = tmp_id
+                if self.info[tmp_id]['intersection_id'] == -1:
+                    intersection['right'] = tmp_id
+            else:
+                intersection['right'] = tmp_id
+                if self.info[tmp_id]['intersection_id'] == -1:
+                    intersection['left'] = tmp_id
+
+        angles = np.array(angles)
+        if (angles > 0).sum() >= 2 or (angles < 0).sum() >= 2:
+            intersection['left'] = candidates[angles.argmax()]
+            intersection['right'] = candidates[angles.argmin()]
+
+        return intersection
+
     def _get_track(self, CHECKPOINTS, TRACK_RAD=900/SCALE):
 
         CHECKPOINTS = 12
@@ -898,47 +969,49 @@ class CarRacing(gym.Env, EzPickle):
     
         # Red-white border on hard turns
         borders = []
-        for track in self.tracks:
-            border = [False]*len(track)
-            for i in range(1,len(track)):
-                good = True
-                oneside = 0
-                for neg in range(BORDER_MIN_COUNT):
-                    beta1 = track[i-neg][1][1]
-                    beta2 = track[i-neg][0][1]
-                    good &= abs(beta1 - beta2) > TRACK_TURN_RATE*0.2
-                    oneside += np.sign(beta1 - beta2)
-                good &= abs(oneside) == BORDER_MIN_COUNT
-                border[i] = good
-            for i in range(len(track)):
-                for neg in range(BORDER_MIN_COUNT):
-                    border[i-neg] |= border[i]
-            borders.append(border)
+        if False:
+            for track in self.tracks:
+                border = [False]*len(track)
+                for i in range(1,len(track)):
+                    good = True
+                    oneside = 0
+                    for neg in range(BORDER_MIN_COUNT):
+                        beta1 = track[i-neg][1][1]
+                        beta2 = track[i-neg][0][1]
+                        good &= abs(beta1 - beta2) > TRACK_TURN_RATE*0.2
+                        oneside += np.sign(beta1 - beta2)
+                    good &= abs(oneside) == BORDER_MIN_COUNT
+                    border[i] = good
+                for i in range(len(track)):
+                    for neg in range(BORDER_MIN_COUNT):
+                        # TODO ERROR, sometimes list index out of range
+                        border[i-neg] |= border[i]
+                borders.append(border)
                 
-        # Creating borders for printing
-        pos = 0
-        for j in range(self.num_tracks):
-            track  = self.tracks[j]
-            border = borders[j]
-            for i in range(len(track)):
-                alpha1, beta1, x1, y1 = track[i][1]
-                alpha2, beta2, x2, y2 = track[i][0]
-                if border[i]:
-                    side = np.sign(beta2 - beta1)
+            # Creating borders for printing
+            pos = 0
+            for j in range(self.num_tracks):
+                track  = self.tracks[j]
+                border = borders[j]
+                for i in range(len(track)):
+                    alpha1, beta1, x1, y1 = track[i][1]
+                    alpha2, beta2, x2, y2 = track[i][0]
+                    if border[i]:
+                        side = np.sign(beta2 - beta1)
 
-                    c = 1
+                        c = 1
 
-                    # Addapting border to appear at the right widht when there are different number of lanes
-                    if self.num_lanes > 1:
-                        if side == -1 and self.info[pos]['lanes'][0] == False: c = 0
-                        if side == +1 and self.info[pos]['lanes'][1] == False: c = 0
+                        # Addapting border to appear at the right widht when there are different number of lanes
+                        if self.num_lanes > 1:
+                            if side == -1 and self.info[pos]['lanes'][0] == False: c = 0
+                            if side == +1 and self.info[pos]['lanes'][1] == False: c = 0
 
-                    b1_l = (x1 + side* TRACK_WIDTH*c        *math.cos(beta1), y1 + side* TRACK_WIDTH*c        *math.sin(beta1))
-                    b1_r = (x1 + side*(TRACK_WIDTH*c+BORDER)*math.cos(beta1), y1 + side*(TRACK_WIDTH*c+BORDER)*math.sin(beta1))
-                    b2_l = (x2 + side* TRACK_WIDTH*c        *math.cos(beta2), y2 + side* TRACK_WIDTH*c        *math.sin(beta2))
-                    b2_r = (x2 + side*(TRACK_WIDTH*c+BORDER)*math.cos(beta2), y2 + side*(TRACK_WIDTH*c+BORDER)*math.sin(beta2))
-                    self.border_poly.append(( [b1_l, b1_r, b2_r, b2_l], (1,1,1) if i%2==0 else (1,0,0) ))
-                pos += 1
+                        b1_l = (x1 + side* TRACK_WIDTH*c        *math.cos(beta1), y1 + side* TRACK_WIDTH*c        *math.sin(beta1))
+                        b1_r = (x1 + side*(TRACK_WIDTH*c+BORDER)*math.cos(beta1), y1 + side*(TRACK_WIDTH*c+BORDER)*math.sin(beta1))
+                        b2_l = (x2 + side* TRACK_WIDTH*c        *math.cos(beta2), y2 + side* TRACK_WIDTH*c        *math.sin(beta2))
+                        b2_r = (x2 + side*(TRACK_WIDTH*c+BORDER)*math.cos(beta2), y2 + side*(TRACK_WIDTH*c+BORDER)*math.sin(beta2))
+                        self.border_poly.append(( [b1_l, b1_r, b2_r, b2_l], (1,1,1) if i%2==0 else (1,0,0) ))
+                    pos += 1
 
 
         # Create tiles
@@ -1025,6 +1098,7 @@ class CarRacing(gym.Env, EzPickle):
                         shape=polygonShape(vertices=vertices)
                         ))
                     t.userData = t
+                    i = 0
                     c = 0.01*(i%3)
                     if joint and SHOW_JOINTS:
                         t.color = [1,1,1]
