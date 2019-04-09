@@ -95,9 +95,11 @@ def default_reward_callback(tile,begin,local_vars,global_vars):
     # Substracting value of obstacle
     self = local_vars['self']
     if begin:
+        # Checking if tile is obstacle
         if tile.typename == OBSTACLE_NAME:
             self.env.reward += OBSTACLE_VALUE
             
+        # Checking if it was visited before
         if not tile.road_visited:
             reward_episode = 1000.0/len(self.env.track)
 
