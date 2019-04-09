@@ -91,10 +91,26 @@ if ZOOM_OUT: ZOOM         = 0.25    # Complementary to ZOOM_OUT
 # in the behaviour of the game and you will not realise 
 FORBID_HARD_TURNS_IN_INTERSECTIONS = False 
 
+def default_reward_callback(tile,begin,local_vars,global_vars):
+    # Substracting value of obstacle
+    if tile.typename == OBSTACLE_NAME:
+        # TODO this can be moved inside begin 
+        local_vars['env'].reward += OBSTACLE_VALUE
+    if begin:
+        if not tile.road_visited:
+            reward_episode = 1000.0/len(self.env.track)
+
+            # Cliping reward per expisode
+            reward_episode = np.clip(
+                    reward_episode, self.env.min_episode_reward, self.env.max_episode_reward)
+            local_vars['env'].reward += reward_episode
+            local_vars['env'].tile_visited_count += 1
+
 class FrictionDetector(contactListener):
-    def __init__(self, env):
+    def __init__(self, env, reward_callback=default_reward_callback):
         contactListener.__init__(self)
         self.env = env
+        self.reward_callback = reward_callback
     def BeginContact(self, contact):
         self._contact(contact, True)
     def EndContact(self, contact):
@@ -118,10 +134,6 @@ class FrictionDetector(contactListener):
             tile.color[2] = ROAD_COLOR[2]
         if not obj or "tiles" not in obj.__dict__: return
 
-        # Substracting value of obstacle
-        if tile.typename == OBSTACLE_NAME:
-            self.env.reward += OBSTACLE_VALUE
-
         if begin:
                 if tile.typename == TILE_NAME:
                     self.env.add_current_tile(tile.id, tile.lane)
@@ -129,13 +141,6 @@ class FrictionDetector(contactListener):
                 #print tile.road_friction, "ADD", len(obj.tiles)
                 if not tile.road_visited:
                     tile.road_visited = True
-                    reward_episode = 1000.0/len(self.env.track)
-
-                    # Cliping reward per expisode
-                    reward_episode = np.clip(
-                            reward_episode, self.env.min_episode_reward, self.env.max_episode_reward)
-                    self.env.reward += reward_episode
-                    self.env.tile_visited_count += 1
         else:
             obj.tiles.remove(tile)
             self.env.remove_current_tile(tile.id, tile.lane)
@@ -143,7 +148,9 @@ class FrictionDetector(contactListener):
 
             # Registering last contact with track
             self.env.last_touch_with_track = self.env.t
-
+                    
+        self.reward_callback(tile, begin, locals(), globals())
+            
 class CarRacing(gym.Env, EzPickle):
     '''
     Controls some attributes of the game, such as the number of tracks (num_tracks)
