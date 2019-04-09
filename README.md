@@ -64,6 +64,7 @@ The map of the track now is configurable but still completely random, now the ma
 ### New Features regarding Reward Function
 
 * Easy to modify the reward function
+* On initialization of the environment, a custom reward function can be passed
 * Configure how long the car can be outside track before restarting env
 * Now the reaward function takes into account:
 

@@ -93,18 +93,19 @@ FORBID_HARD_TURNS_IN_INTERSECTIONS = False
 
 def default_reward_callback(tile,begin,local_vars,global_vars):
     # Substracting value of obstacle
-    if tile.typename == OBSTACLE_NAME:
-        # TODO this can be moved inside begin 
-        local_vars['env'].reward += OBSTACLE_VALUE
+    self = local_vars['self']
     if begin:
+        if tile.typename == OBSTACLE_NAME:
+            self.env.reward += OBSTACLE_VALUE
+            
         if not tile.road_visited:
             reward_episode = 1000.0/len(self.env.track)
 
             # Cliping reward per expisode
             reward_episode = np.clip(
                     reward_episode, self.env.min_episode_reward, self.env.max_episode_reward)
-            local_vars['env'].reward += reward_episode
-            local_vars['env'].tile_visited_count += 1
+            self.env.reward += reward_episode
+            self.env.tile_visited_count += 1
 
 class FrictionDetector(contactListener):
     def __init__(self, env, reward_callback=default_reward_callback):
@@ -134,6 +135,9 @@ class FrictionDetector(contactListener):
             tile.color[2] = ROAD_COLOR[2]
         if not obj or "tiles" not in obj.__dict__: return
 
+        # Call reward function
+        self.reward_callback(tile, begin, locals(), globals())
+
         if begin:
                 if tile.typename == TILE_NAME:
                     self.env.add_current_tile(tile.id, tile.lane)
@@ -149,7 +153,6 @@ class FrictionDetector(contactListener):
             # Registering last contact with track
             self.env.last_touch_with_track = self.env.t
                     
-        self.reward_callback(tile, begin, locals(), globals())
             
 class CarRacing(gym.Env, EzPickle):
     '''
@@ -215,6 +218,17 @@ class CarRacing(gym.Env, EzPickle):
                                      ok. It is also good to control the gradient.
                                      Having max and min values for reward makes learning more stable (i.e. less 
                                      variance) but so far it does not make it learn faster
+
+    reward_fn          (function)    The default value is default_reward_callback. This
+                                     paramter is a function which can replace the reward
+                                     function, it has to take 4 variables as inputs.
+                                     tile,begin,local_vars,global_vars. Tile is the current tile,
+                                     begin is True if the contact with tile has just started,
+                                     local_vars and global_vars are locals() and globals()
+                                     respectively. The function should manually set the reward
+                                     on local_vars['env'].reward. see the function 
+                                     default_reward_callback for an example of how a 
+                                     reward function works
     '''
     metadata = {
         'render.modes': ['human', 'rgb_array', 'state_pixels'],
@@ -224,8 +238,6 @@ class CarRacing(gym.Env, EzPickle):
     def __init__(self, **kwargs):
         EzPickle.__init__(self)
         self.seed()
-        self.contactListener_keepref = FrictionDetector(self)
-        self.world = Box2D.b2World((0,0), contactListener=self.contactListener_keepref)
         self.viewer = None
         self.invisible_state_window = None
         self.invisible_video_window = None
@@ -257,7 +269,8 @@ class CarRacing(gym.Env, EzPickle):
             allow_reverse=0,
             min_episode_reward=-np.inf,
             max_episode_reward=+np.inf,
-            animate_zoom=False
+            animate_zoom=False,
+            reward_fn=default_reward_callback,
             ):
         
         # Animate zoom
@@ -319,6 +332,10 @@ class CarRacing(gym.Env, EzPickle):
             self.action_space = spaces.Box( np.array([-1,min_speed,0]), np.array([+1,+1,+1]), dtype=np.float32)  # steer, gas, brake
 
         self.observation_space = spaces.Box(low=0, high=255, shape=state_shape, dtype=np.uint8)
+
+        # Set custom reward function
+        self.contactListener_keepref = FrictionDetector(self, reward_callback=reward_fn)
+        self.world = Box2D.b2World((0,0), contactListener=self.contactListener_keepref)
 
 
     def set_velocity(self, velocity=[0.0,0.0]):
