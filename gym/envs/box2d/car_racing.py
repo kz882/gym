@@ -6,6 +6,7 @@ from copy import copy, deepcopy
 import os
 
 import Box2D
+from Box2D import b2Vec2
 from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape, revoluteJointDef, contactListener)
 import cv2
 
@@ -86,21 +87,27 @@ SHOW_AXIS                 = 0       # Draws two lines where the x and y axis are
 ZOOM_OUT                  = 0       # Shows maps in general and does not do zoom
 if ZOOM_OUT: ZOOM         = 0.25    # Complementary to ZOOM_OUT
 
-# This will forbid predicting turns that has the oposite direction of the car 
+# This will forbid predicting turns that has the oposite direction of the
 # do not modify it if you dont know what you are doing, this can have slight changes
 # in the behaviour of the game and you will not realise 
 FORBID_HARD_TURNS_IN_INTERSECTIONS = False 
 
-def default_reward_callback(tile,begin,local_vars,global_vars):
+def default_reward_callback(tile,obj,begin,local_vars,global_vars):
     # Substracting value of obstacle
     self = local_vars['self']
     if begin:
+        if tile.typename == TILE_NAME:
+            self.env.add_current_tile(tile.id, tile.lane)
+        obj.tiles.add(tile)
+        #print tile.road_friction, "ADD", len(obj.tiles)
+
         # Checking if tile is obstacle
         if tile.typename == OBSTACLE_NAME:
             self.env.reward += OBSTACLE_VALUE
             
         # Checking if it was visited before
         if not tile.road_visited:
+            tile.road_visited = True
             reward_episode = 1000.0/len(self.env.track)
 
             # Cliping reward per expisode
@@ -108,6 +115,14 @@ def default_reward_callback(tile,begin,local_vars,global_vars):
                     reward_episode, self.env.min_episode_reward, self.env.max_episode_reward)
             self.env.reward += reward_episode
             self.env.tile_visited_count += 1
+
+    else:
+        obj.tiles.remove(tile)
+        self.env.remove_current_tile(tile.id, tile.lane)
+        #print tile.road_friction, "DEL", len(obj.tiles) -- should delete to zero when on grass (this works)
+
+        # Registering last contact with track
+        self.env.last_touch_with_track = self.env.t
 
 class FrictionDetector(contactListener):
     def __init__(self, env, reward_callback=default_reward_callback):
@@ -138,23 +153,7 @@ class FrictionDetector(contactListener):
         if not obj or "tiles" not in obj.__dict__: return
 
         # Call reward function
-        self.reward_callback(tile, begin, locals(), globals())
-
-        if begin:
-                if tile.typename == TILE_NAME:
-                    self.env.add_current_tile(tile.id, tile.lane)
-                obj.tiles.add(tile)
-                #print tile.road_friction, "ADD", len(obj.tiles)
-                if not tile.road_visited:
-                    tile.road_visited = True
-        else:
-            obj.tiles.remove(tile)
-            self.env.remove_current_tile(tile.id, tile.lane)
-            #print tile.road_friction, "DEL", len(obj.tiles) -- should delete to zero when on grass (this works)
-
-            # Registering last contact with track
-            self.env.last_touch_with_track = self.env.t
-                    
+        self.reward_callback(tile, obj, begin, locals(), globals())
             
 class CarRacing(gym.Env, EzPickle):
     '''
@@ -369,6 +368,11 @@ class CarRacing(gym.Env, EzPickle):
         '''
         self.car.destroy()
         self.car = Car(self.world, *position, allow_reverse=self.allow_reverse)
+
+        # This a better way to do it but coordinates changes slightly, Dont know why 
+        # TODO research this weird behaviour
+        #self.car.hull.position.Set(position[1],position[2])#tuple(position[1:])
+        #self.car.hull.angle = float(position[0])
 
     def add_current_tile(self,id,lane):
         ######## Calculating direction
@@ -1222,20 +1226,16 @@ class CarRacing(gym.Env, EzPickle):
             self.car.fuel_spent = 0.0
             step_reward = self.reward - self.prev_reward
             self.prev_reward = self.reward
-            if self.tile_visited_count==len(self.track) or \
-                    (self.t - self.last_touch_with_track > self.max_time_out and \
-                    self.max_time_out > 0.0):
+            if self.t - self.last_touch_with_track > self.max_time_out and \
+                    self.max_time_out > 0.0:
                 done = True
-                if self.t - self.last_touch_with_track > self.max_time_out and \
-                        self.max_time_out > 0.0:
-                    print("done by time")
-                    step_reward = -100
+                print("done by time")
+                step_reward = -100
             x, y = self.car.hull.position
             if not done and abs(x) > PLAYFIELD or abs(y) > PLAYFIELD:
                 done = True
                 step_reward = -100
                 
-
         return self.state, step_reward, done, {}
 
     def render(self, mode='human'):
@@ -1471,7 +1471,7 @@ class CarRacing(gym.Env, EzPickle):
         '''
         # drawing road old way
         for poly, color, id, lane in self.road_poly:
-            if id in self._trail_nodes and lane in self._trail_nodes[id]:
+            if SHOW_NEXT_N_TILES > 0 and id in self._trail_nodes and lane in self._trail_nodes[id]:
                 color = [c/2 for c in color]
 
             gl.glColor4f(color[0], color[1], color[2], 1)
