@@ -92,6 +92,22 @@ if ZOOM_OUT: ZOOM         = 0.25    # Complementary to ZOOM_OUT
 # in the behaviour of the game and you will not realise 
 FORBID_HARD_TURNS_IN_INTERSECTIONS = False 
 
+def key_press_example(k, mod):
+    """
+    Example callback function
+    """
+    if k==key.LEFT:
+        # change a value or print something
+        pass
+
+def key_release_example(k, mod):
+    """
+    Example callback function
+    """
+    if k==key.LEFT:
+        # change a value or print something
+        pass
+
 def default_reward_callback(tile,obj,begin,local_vars,global_vars):
     # Substracting value of obstacle
     self = local_vars['self']
@@ -230,6 +246,15 @@ class CarRacing(gym.Env, EzPickle):
                                      on local_vars['env'].reward. see the function 
                                      default_reward_callback for an example of how a 
                                      reward function works
+
+    key_press_fn        (function)   A function that will be called each time a key is pressed in the
+                                     window (viewer). See key_press_example(k, mod) function to see
+                                     an example of how this can work. The default is None
+
+    key_release_fn      (function)   A function that willl be called each time a key is release in
+                                     window (viewer). See key_release_example(k, mod) function to see
+                                     an example of how this can work. The default is None
+
     '''
     metadata = {
         'render.modes': ['human', 'rgb_array', 'state_pixels'],
@@ -272,7 +297,13 @@ class CarRacing(gym.Env, EzPickle):
             max_episode_reward=+np.inf,
             animate_zoom=False,
             reward_fn=default_reward_callback,
+            key_press_fn=None,
+            key_release_fn=None,
             ):
+
+        # Setting key press callback functions
+        self.key_press_fn = key_press_fn
+        self.key_release_fn = key_press_fn 
         
         # Animate zoom
         self.animate_zoom = animate_zoom
@@ -1252,6 +1283,12 @@ class CarRacing(gym.Env, EzPickle):
                 x=250, y=WINDOW_H*3.7/40.00, anchor_x='left', anchor_y='center',
                 color=(255,255,255,255))
             self.transform = rendering.Transform()
+            set_trace()
+            
+            if self.key_press_fn is not None:
+                self.viewer.window.on_key_press = self.key_press_fn
+            if self.key_release_fn is not None:
+                self.viewer.window.on_key_release = self.key_release_fn
 
         if "t" not in self.__dict__: return  # reset() not called yet
 
@@ -1283,7 +1320,10 @@ class CarRacing(gym.Env, EzPickle):
 
         arr = None
         win = self.viewer.window
-        if mode != 'state_pixels':
+        
+        # To allow listening to keys during training
+        if self.key_press_fn is not None or \
+                self.key_release_fn is not None or mode != 'state_pixels':
             win.switch_to()
             win.dispatch_events()
         if mode=="rgb_array" or mode=="state_pixels":
@@ -1751,6 +1791,20 @@ class CarRacing(gym.Env, EzPickle):
         ZOOM_OUT = (ZOOM_OUT+1)%2
         if ZOOM_OUT: ZOOM = 0.25
         else:        ZOOM = 2.7
+
+    def set_press_fn(self,key_press_fn):
+        self.key_press_fn = key_press_fn
+        set_trace()
+        if self.viewer is not None:
+            if self.key_press_fn is not None:
+                print("setting key press function")
+                self.viewer.window.on_key_press = self.key_press_fn
+
+    def set_release_fn(self,key_release_fn):
+        self.key_release_fn = key_release_fn 
+        if self.viewer is not None:
+            if self.key_release_fn is not None:
+                self.viewer.window.on_key_release = self.key_release_fn
 
 def play(env):
     """

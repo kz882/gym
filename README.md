@@ -90,6 +90,10 @@ The map of the track now is configurable but still completely random, now the ma
 * `R`: Get new track `reset`
 * `Q`: quit, close game
 
+### Some other interesting features
+
+* `key_press_function` and `key_release_fn`: It is a initialization parameter, it is very useful to, for example change a variable during executing. The most useful case is start rendering the environemt while training, to have visual feedback of how the training is going
+
 
 ## Useful functions
 
@@ -113,6 +117,8 @@ Returns: [beta, x, y].
 | `get_rnd_point_in_track` | `border` | Gets a random position inside the track (touching or not the border) |
 | `get_position_near_junction` | `type_junction, tiles_before` | Returns a position `tiles_before` tiles before the `type_junction` junction |
 | `get_position_outside` | `distance` | Returns a position outside the track `distance` meters far from track |
+| `set_press_fn` | fn | Will call this function everytime a key is press in the window of the game. Do not use it while using play |
+| `set_release_fn` | fn | Will call this function everytime a key is release in the window of the game. Do not use it while using play |
 
 
 ## Things to do or done:
