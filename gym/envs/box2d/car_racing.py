@@ -75,7 +75,7 @@ BORDER_NAME    = 'border'
 GRASS_NAME     = 'grass'
 
 # Debug actions
-SHOW_NEXT_N_TILES         = 10       # Show the next N tiles
+SHOW_NEXT_N_TILES         = 0       # Show the next N tiles
 SHOW_ENDS_OF_TRACKS       = 0       # Shows with red dots the end of track
 SHOW_START_OF_TRACKS      = 0       # Shows with green dots the end of track
 SHOW_INTERSECTION_POINTS  = 0       # Shows with yellow dots the intersections of main track
@@ -218,12 +218,13 @@ class CarRacing(gym.Env, EzPickle):
     frames_per_state   (int 1)       The number of concatenated frames for the state, =3 means 
                                      that the state will be the last 3 frames of the env
 
-    discretize_actions (str "hard")  How to discretize the action space, a value in {None,"soft", "hard"}. 
-                                     None means space is continuous
-                                     "hard" actions are 4 [NOTHING, LEFT, RIGHT, ACCELERATE, BREAK]
-                                     "soft" actions are 7 [NOTHING, SOFT_LEFT, HARD_LEFT, SOFT_RIGHT, HARD_RIGHT,
-                                     SOFT_STRAIGHT, HARD_STRAIGHT, SOFT_BREAK, HARD_BREAK] but "hard method is not
-                                     implemented yet
+    discretize_actions (str "hard")  How to discretize the action space, a value in {None,"soft", 
+                                     "hard"}. WARNING "soft" method is not implemented yet
+                                     - None means space is continuous
+                                     - "hard" actions are 4 [NOTHING, LEFT, RIGHT, ACCELERATE, BREAK]
+                                     - "soft" actions are 7 [NOTHING, SOFT_LEFT, HARD_LEFT, SOFT_RIGHT,
+                                     HARD_RIGHT, SOFT_STRAIGHT, HARD_STRAIGHT, SOFT_BREAK, 
+                                     HARD_BREAK] 
 
     min_episode_reward (flt -inf)    To limit the min reward the agent can have in an episode, -np.inf means no limit
                                      it is good to control the gradient
@@ -254,6 +255,8 @@ class CarRacing(gym.Env, EzPickle):
     key_release_fn      (function)   A function that willl be called each time a key is release in
                                      window (viewer). See key_release_example(k, mod) function to see
                                      an example of how this can work. The default is None
+
+    verbose             (int 1)      1: Print useful information, such as fail creating track msg, etc
 
     '''
     metadata = {
@@ -299,7 +302,11 @@ class CarRacing(gym.Env, EzPickle):
             reward_fn=default_reward_callback,
             key_press_fn=None,
             key_release_fn=None,
+            verbose=1,
             ):
+
+        # Set verbose
+        self.verbose = verbose
 
         # Setting key press callback functions
         self.key_press_fn = key_press_fn
@@ -347,7 +354,8 @@ class CarRacing(gym.Env, EzPickle):
             lst = list(range(self.frames_per_state))
             self._update_index = [lst[-1]] + lst[:-1]
 
-        self.discretize_actions = discretize_actions if discretize_actions in [None,"soft","hard"] else "hard"
+        # not including "soft" because it is not implemented yet
+        self.discretize_actions = discretize_actions if discretize_actions in [None,"hard"] else "hard"
         
         if max_episode_reward < min_episode_reward:
             raise AttributeError("max_episode_reward must be greater than min_episode_reward")
@@ -725,7 +733,8 @@ class CarRacing(gym.Env, EzPickle):
             elif pass_through_start and i1==-1:
                 i1 = i
                 break
-        print("Track generation: %i..%i -> %i-tiles track" % (i1, i2, i2-i1))
+        if self.verbose > 0:
+            print("Track generation: %i..%i -> %i-tiles track" % (i1, i2, i2-i1))
         assert i1!=-1
         assert i2!=-1
 
@@ -935,7 +944,8 @@ class CarRacing(gym.Env, EzPickle):
             elm = self.track[val,1,2:]
             d = np.linalg.norm(tmp-elm,axis=1)
             if d.min() > TRACK_WIDTH*2:
-                print("the closest intersection is too far away")
+                if self.verbose > 0:
+                    print("the closest intersection is too far away")
             else:
                 k = intersection_keys[d.argmin()] 
                 
@@ -1204,7 +1214,8 @@ class CarRacing(gym.Env, EzPickle):
         while True:
             success = self._create_track()
             if success: break
-            print("retry to generate track (normal if there are not many of this messages)")
+            if self.verbose > 0:
+                print("retry to generate track (normal if there are not many of this messages)")
         #if car_position is None or car_position[0] == None or car_position[1] == None or car_position[2] == None:
         car_position = self.track[0][1][1:4]
         self.car = Car(self.world, *car_position, allow_reverse=self.action_space)
@@ -1260,7 +1271,8 @@ class CarRacing(gym.Env, EzPickle):
             if self.t - self.last_touch_with_track > self.max_time_out and \
                     self.max_time_out > 0.0:
                 done = True
-                print("done by time")
+                if self.verbose > 0:
+                    print("done by time")
                 step_reward = -100
             x, y = self.car.hull.position
             if not done and abs(x) > PLAYFIELD or abs(y) > PLAYFIELD:
@@ -1283,7 +1295,6 @@ class CarRacing(gym.Env, EzPickle):
                 x=250, y=WINDOW_H*3.7/40.00, anchor_x='left', anchor_y='center',
                 color=(255,255,255,255))
             self.transform = rendering.Transform()
-            set_trace()
             
             if self.key_press_fn is not None:
                 self.viewer.window.on_key_press = self.key_press_fn
@@ -1794,10 +1805,8 @@ class CarRacing(gym.Env, EzPickle):
 
     def set_press_fn(self,key_press_fn):
         self.key_press_fn = key_press_fn
-        set_trace()
         if self.viewer is not None:
             if self.key_press_fn is not None:
-                print("setting key press function")
                 self.viewer.window.on_key_press = self.key_press_fn
 
     def set_release_fn(self,key_release_fn):
@@ -1872,7 +1881,7 @@ def play(env):
             else: a_tmp = a
             s, r, done, info = env.step(a_tmp)
             total_reward += r
-            if steps % 200 == 0 or done:
+            if steps % 200 == 0 or done and self.verbose > 0:
                 #print("\naction " + str(["{:+0.2f}".format(x) for x in a]))
                 print("step {} total_reward {:+0.2f}".format(steps, total_reward))
                 #import matplotlib.pyplot as plt
