@@ -1269,6 +1269,8 @@ class CarRacing(gym.Env, EzPickle):
             self.car.fuel_spent = 0.0
             step_reward = self.reward - self.prev_reward
             self.prev_reward = self.reward
+            if self.reward > 1000:
+                done = True
             if self.t - self.last_touch_with_track > self.max_time_out and \
                     self.max_time_out > 0.0:
                 done = True
@@ -1882,7 +1884,7 @@ def play(env):
             else: a_tmp = a
             s, r, done, info = env.step(a_tmp)
             total_reward += r
-            if steps % 200 == 0 or done and self.verbose > 0:
+            if steps % 200 == 0 or done:
                 #print("\naction " + str(["{:+0.2f}".format(x) for x in a]))
                 print("step {} total_reward {:+0.2f}".format(steps, total_reward))
                 #import matplotlib.pyplot as plt
