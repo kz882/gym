@@ -283,6 +283,7 @@ class CarRacing(gym.Env, EzPickle):
 
         # Config
         self._set_config(**kwargs)
+        self._org_config = deepcopy(kwargs)
 
     def _set_config(self, 
             num_tracks=1, 
