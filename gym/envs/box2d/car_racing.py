@@ -1165,12 +1165,17 @@ class CarRacing(gym.Env, EzPickle):
                         else:
                             vertices = [road2_r, road2_l, points[0], points[1]]
                         joint = True
-                
-                    if len(vertices) != 4: return False 
+                    
                     # TODO CHECK IF THIS AVOID THE ERROR OF ASSERTION COUNT >= 3
-                    t = self.world.CreateStaticBody( fixtures = fixtureDef(
-                        shape=polygonShape(vertices=vertices)
-                        ))
+                    # TODO remove this try and find a way of really catching the errer
+                    try:
+                        t = self.world.CreateStaticBody( fixtures = fixtureDef(
+                            shape=polygonShape(vertices=vertices)
+                            ))
+                    except AssertionError as e:
+                        print(str(e))
+                        print(vertices)
+                        return False
                     t.userData = t
                     i = 0
                     c = 0.01*(i%3)
