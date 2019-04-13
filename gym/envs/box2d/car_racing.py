@@ -417,8 +417,17 @@ class CarRacing(gym.Env, EzPickle):
     def add_current_tile(self,id,lane):
         ######## Calculating direction
         id_relative = id
-        if self.info[id]['track'] > 0:
-            id_relative -= len(self.tracks[self.info[id]['track']-1])
+
+        # TODO remove this if and only leave the else
+        try:
+            if self.info[id]['track'] > 0:
+                id_relative -= len(self.tracks[self.info[id]['track']-1])
+        except Exception as e:
+            print(e)
+            print("error, see line 421 of car_racing")
+            print("info len", str(self.info.shape))
+            print("track len", str(self.track.shape))
+            return None
         next_id = (id_relative + 1) % len(self.tracks[self.info[id]['track']])
         last_id = (id_relative - 1) % len(self.tracks[self.info[id]['track']])
         
