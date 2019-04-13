@@ -1165,7 +1165,9 @@ class CarRacing(gym.Env, EzPickle):
                         else:
                             vertices = [road2_r, road2_l, points[0], points[1]]
                         joint = True
-
+                
+                    if len(vertices) != 4: return False 
+                    # TODO CHECK IF THIS AVOID THE ERROR OF ASSERTION COUNT >= 3
                     t = self.world.CreateStaticBody( fixtures = fixtureDef(
                         shape=polygonShape(vertices=vertices)
                         ))
@@ -1270,6 +1272,8 @@ class CarRacing(gym.Env, EzPickle):
             step_reward = self.reward - self.prev_reward
             self.prev_reward = self.reward
             if self.reward > 1000:
+                done = True
+            if self.reward < -200:
                 done = True
             if self.t - self.last_touch_with_track > self.max_time_out and \
                     self.max_time_out > 0.0:
