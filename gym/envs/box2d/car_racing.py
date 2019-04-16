@@ -65,6 +65,7 @@ TRACK_WIDTH = 40/SCALE
 BORDER = 8/SCALE
 BORDER_MIN_COUNT = 4
 NUM_TILES_FOR_AVG = 5 # The number of tiles before and after to takeinto account for angle
+TILES_IN_SCREEN = 20  # The number of tiles that fit in a screen (arange as track)
 
 ROAD_COLOR = [0.4, 0.4, 0.4]
 
@@ -114,11 +115,8 @@ def default_reward_callback(tile,obj,begin,local_vars,global_vars):
     if begin:
         if tile.typename == TILE_NAME:
             self.env.add_current_tile(tile.id, tile.lane)
-        obj.tiles.add(tile)
-        #print tile.road_friction, "ADD", len(obj.tiles)
-
-        # Checking if tile is obstacle
-        if tile.typename == OBSTACLE_NAME:
+            obj.tiles.add(tile)
+        elif tile.typename == OBSTACLE_NAME:
             self.env.reward += OBSTACLE_VALUE
             
         # Checking if it was visited before
@@ -133,12 +131,13 @@ def default_reward_callback(tile,obj,begin,local_vars,global_vars):
             self.env.tile_visited_count += 1
 
     else:
-        obj.tiles.remove(tile)
-        self.env.remove_current_tile(tile.id, tile.lane)
-        #print tile.road_friction, "DEL", len(obj.tiles) -- should delete to zero when on grass (this works)
+        if tile.typename == TILE_NAME:
+            obj.tiles.remove(tile)
+            self.env.remove_current_tile(tile.id, tile.lane)
+            #print tile.road_friction, "DEL", len(obj.tiles) -- should delete to zero when on grass (this works)
 
-        # Registering last contact with track
-        self.env.last_touch_with_track = self.env.t
+            # Registering last contact with track
+            self.env.last_touch_with_track = self.env.t
 
 class FrictionDetector(contactListener):
     def __init__(self, env, reward_callback=default_reward_callback):
@@ -257,6 +256,8 @@ class CarRacing(gym.Env, EzPickle):
                                      an example of how this can work. The default is None
 
     verbose             (int 1)      1: Print useful information, such as fail creating track msg, etc
+    
+    random_obstacle_x_position (True)Whether or not to have the obstacles in a random x position or at the begining of each size of the track
 
     '''
     metadata = {
@@ -278,8 +279,9 @@ class CarRacing(gym.Env, EzPickle):
         self._current_nodes = {} # A dict of dicts, dict[id][lane]=direction you can be in more than one tile at the same time, e.g. intersections
         self._next_nodes = [] # A list of lists of dictionaries
         self.possible_hard_actions = ("NOTHING", "LEFT", "RIGHT", "ACCELERATE", "BREAK")
-        self.possible_soft_actions = ("NOTHING", "SOFT_LEFT", "HARD_LEFT", "SOFT_RIGHT", "HARD_RIGHT",
-                "SOFT_ACCELERATE", "HARD_ACCELERATE", "SOFT_BREAK", "HARD_BREAK")
+        self.possible_soft_actions = ("NOTHING", "SOFT_LEFT", "HARD_LEFT", 
+                "SOFT_RIGHT", "HARD_RIGHT", "SOFT_ACCELERATE", "HARD_ACCELERATE", 
+                "SOFT_BREAK", "HARD_BREAK") # Not implemented
 
         # Config
         self._set_config(**kwargs)
@@ -304,7 +306,15 @@ class CarRacing(gym.Env, EzPickle):
             key_press_fn=None,
             key_release_fn=None,
             verbose=1,
+            random_obstacle_x_position=True,
+            random_obstacle_shape=True,
             ):
+        
+        # Set random obstacle shape property
+        self.random_obstacle_shape = random_obstacle_shape
+            
+        # set random obstacle x position property
+        self.random_obstacle_x_position = random_obstacle_x_position
 
         # Set verbose
         self.verbose = verbose
@@ -766,20 +776,87 @@ class CarRacing(gym.Env, EzPickle):
     def _create_obstacles(self):
         # Get random tile, with replacement
         # Create obstacle (red rectangle of random width and position in tile)
-        tiles_idx = np.random.choice(range(len(self.track)), self.num_obstacles, replace=False)
-        for idx in tiles_idx:
-            alpha, beta, x,y = self._get_rnd_position_inside_lane(idx)
+        #tiles_idx = np.random.choice(range(len(self.track)), self.num_obstacles, replace=False)
 
-            width = abs(np.random.normal(1)*TRACK_WIDTH/4)
+        possible_candidates = list(range(len(self.track)))
 
-            p1 = (x - width*math.cos(beta) + TRACK_DETAIL_STEP/2*math.sin(beta),
-                  y - width*math.sin(beta) - TRACK_DETAIL_STEP/2*math.cos(beta))
-            p2 = (x + width*math.cos(beta) + TRACK_DETAIL_STEP/2*math.sin(beta),
-                  y + width*math.sin(beta) - TRACK_DETAIL_STEP/2*math.cos(beta))
-            p3 = (x + width*math.cos(beta) - TRACK_DETAIL_STEP/2*math.sin(beta),
-                  y + width*math.sin(beta) + TRACK_DETAIL_STEP/2*math.cos(beta))
-            p4 = (x - width*math.cos(beta) - TRACK_DETAIL_STEP/2*math.sin(beta),
-                  y - width*math.sin(beta) + TRACK_DETAIL_STEP/2*math.cos(beta))
+        # This loop removes any tile close to an 
+        # intersection from posible candidates
+        for inter_tile in np.where(self.info['intersection_id'] != -1)[0]:
+            track_len = len(self.tracks[self.info[inter_tile]['track']])
+            compl_len = (self.info['track'] < self.info[inter_tile]['track']).sum()
+            
+            idx_relative = self._to_relative(inter_tile)
+
+            from_tile = -TILES_IN_SCREEN // 2
+            to_tile   = +TILES_IN_SCREEN // 2
+
+            if self.info[inter_tile]['start']:
+                from_tile = 0
+            if self.info[inter_tile]['end']:
+                to_tile = 1
+
+            unvalid_candidates = []
+            for i in range(from_tile,to_tile):
+                unvalid_candidates.append(((idx_relative+i) % track_len)+compl_len)
+
+            possible_candidates = [item for item in possible_candidates if item not in unvalid_candidates]
+
+            if len(possible_candidates) == 0: break
+
+        # This loop gets a list of tiles where the obstacles will be place
+        # the osbtacles can not be near each other, at least +/-TILES_IN_SCREEN
+        obstacle_tiles_ids = []
+        if len(possible_candidates) > 0:
+            for _ in range(self.num_obstacles):
+                idx = np.random.choice(possible_candidates,1,replace=False)[0]
+                obstacle_tiles_ids.append(idx)
+
+                track_len = len(self.tracks[self.info[idx]['track']])
+                compl_len = (self.info['track'] < self.info[idx]['track']).sum()
+                
+                idx_relative = self._to_relative(idx)
+
+                unvalid_candidates = []
+                for i in range(-TILES_IN_SCREEN,+TILES_IN_SCREEN):
+                    unvalid_candidates.append(((idx_relative+i) % track_len)+compl_len)
+
+                possible_candidates = [item for item in possible_candidates\
+                        if item not in unvalid_candidates]
+
+                if len(possible_candidates) == 0: break
+
+        # This creates the objects for the obstacles
+        for idx in obstacle_tiles_ids:
+            if self.random_obstacle_x_position:
+                alpha, beta, x,y = self._get_rnd_position_inside_lane(idx)
+            else:
+                alpha, beta, x,y = self._get_rnd_position_inside_lane(
+                        idx,border=False,discrete=True)
+
+            if self.random_obstacle_shape:
+                width = abs(np.random.normal(1)*TRACK_WIDTH/4)
+
+                p1 = (x - width*math.cos(beta) + TRACK_DETAIL_STEP/2*math.sin(beta),
+                      y - width*math.sin(beta) - TRACK_DETAIL_STEP/2*math.cos(beta))
+                p2 = (x + width*math.cos(beta) + TRACK_DETAIL_STEP/2*math.sin(beta),
+                      y + width*math.sin(beta) - TRACK_DETAIL_STEP/2*math.cos(beta))
+                p3 = (x + width*math.cos(beta) - TRACK_DETAIL_STEP/2*math.sin(beta),
+                      y + width*math.sin(beta) + TRACK_DETAIL_STEP/2*math.cos(beta))
+                p4 = (x - width*math.cos(beta) - TRACK_DETAIL_STEP/2*math.sin(beta),
+                      y - width*math.sin(beta) + TRACK_DETAIL_STEP/2*math.cos(beta))
+            else:
+                width = TRACK_WIDTH/2
+
+                p1 = (x + TRACK_DETAIL_STEP/2*math.sin(beta),
+                      y - TRACK_DETAIL_STEP/2*math.cos(beta))
+                p2 = (x + 2*width*math.cos(beta) + TRACK_DETAIL_STEP/2*math.sin(beta),
+                      y + 2*width*math.sin(beta) - TRACK_DETAIL_STEP/2*math.cos(beta))
+                p3 = (x + 2*width*math.cos(beta) - TRACK_DETAIL_STEP/2*math.sin(beta),
+                      y + 2*width*math.sin(beta) + TRACK_DETAIL_STEP/2*math.cos(beta))
+                p4 = (x - TRACK_DETAIL_STEP/2*math.sin(beta),
+                      y + TRACK_DETAIL_STEP/2*math.cos(beta))
+
 
             vertices = [p1,p2,p3,p4]
 
@@ -1237,6 +1314,11 @@ class CarRacing(gym.Env, EzPickle):
         car_position = self.track[0][1][1:4]
         self.car = Car(self.world, *car_position, allow_reverse=self.action_space)
         self.place_agent(self.get_rnd_point_in_track())
+        
+        #for _ in range(self.frames_per_state+20):
+            #obs = self.step(None)[0]
+
+        #return obs
 
         return self.step(None)[0]
 
@@ -1732,24 +1814,39 @@ class CarRacing(gym.Env, EzPickle):
         _,beta,x,y = self._get_rnd_position_inside_lane(idx,border)
         return [beta, x, y]
 
-    def _get_rnd_position_inside_lane(self,idx,border=True,direction=1):
+    def _get_rnd_position_inside_lane(self,idx,border=True,direction=1,discrete=False):
         '''
         idx of tile
-        direction: -1 if want it going in the opposite direction
+        direction: -1 if want it going in the opposite direction,
+        discrete=True means the random position is either 0 or 1, i.e. in the
+        beginning or the end of the position in the x-relative coordinate
         '''
         alpha, beta, x, y = self.track[idx,1,:]
         if direction == -1:
             alpha+=np.pi
             beta+=np.pi
+        from_val, to_val = self._get_extremes_of_position(idx,border)
+        h = np.random.uniform(0,1)
+        if discrete:
+            h = 1 if h > 0.5 else 0
+            h = from_val*h + (1-h)*(to_val-TRACK_WIDTH)
+        else:
+            h = from_val*h + (1-h)*to_val
+        x += h*math.cos(beta)
+        y += h*math.sin(beta)
+        return [alpha,beta,x,y]
+
+    def _get_extremes_of_position(self,idx,border):
+        """
+        Get the extreme points (x axis not converted) for a position
+        in the track
+        """
         r,l = True, True
         if self.num_lanes > 1:
             l,r = self.info[idx]['lanes']
         from_val = -TRACK_WIDTH*l + border*TRACK_WIDTH/2
         to_val   = +TRACK_WIDTH*r - border*TRACK_WIDTH/2
-        h = np.random.uniform(from_val,to_val) 
-        x += h*math.cos(alpha)
-        y += h*math.sin(alpha)
-        return [alpha,beta,x,y]
+        return from_val, to_val
 
     def get_position_near_junction(self,type_junction, tiles_before):
         '''
