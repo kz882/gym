@@ -1315,12 +1315,10 @@ class CarRacing(gym.Env, EzPickle):
         self.car = Car(self.world, *car_position, allow_reverse=self.action_space)
         self.place_agent(self.get_rnd_point_in_track())
         
-        #for _ in range(self.frames_per_state+20):
-            #obs = self.step(None)[0]
+        for _ in range(self.frames_per_state+20):
+            obs = self.step(None)[0]
 
-        #return obs
-
-        return self.step(None)[0]
+        return obs
 
     def _update_state(self,new_frame):
         if self.frames_per_state > 1:
@@ -1381,7 +1379,6 @@ class CarRacing(gym.Env, EzPickle):
             if not done and abs(x) > PLAYFIELD or abs(y) > PLAYFIELD:
                 done = True
                 step_reward = -100
-                
         return self.state, step_reward, done, {}
 
     def render(self, mode='human'):
@@ -1436,10 +1433,8 @@ class CarRacing(gym.Env, EzPickle):
         win = self.viewer.window
         
         # To allow listening to keys during training
-        if self.key_press_fn is not None or \
-                self.key_release_fn is not None or mode != 'state_pixels':
-            win.switch_to()
-            win.dispatch_events()
+        win.switch_to()
+        win.dispatch_events()
         if mode=="rgb_array" or mode=="state_pixels":
             win.clear()
             t = self.transform
