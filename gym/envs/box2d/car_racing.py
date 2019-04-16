@@ -76,7 +76,7 @@ BORDER_NAME    = 'border'
 GRASS_NAME     = 'grass'
 
 # Debug actions
-SHOW_NEXT_N_TILES         = 0       # Show the next N tiles
+SHOW_NEXT_N_TILES         = 10       # Show the next N tiles
 SHOW_ENDS_OF_TRACKS       = 0       # Shows with red dots the end of track
 SHOW_START_OF_TRACKS      = 0       # Shows with green dots the end of track
 SHOW_INTERSECTION_POINTS  = 0       # Shows with yellow dots the intersections of main track
@@ -109,41 +109,67 @@ def key_release_example(k, mod):
         # change a value or print something
         pass
 
-def default_reward_callback(tile,obj,begin,local_vars,global_vars):
-    # Substracting value of obstacle
-    self = local_vars['self']
-    if begin:
-        if tile.typename == TILE_NAME:
-            self.env.add_current_tile(tile.id, tile.lane)
-            obj.tiles.add(tile)
-        elif tile.typename == OBSTACLE_NAME:
-            self.env.reward += OBSTACLE_VALUE
-            
-        # Checking if it was visited before
-        if not tile.road_visited:
-            tile.road_visited = True
-            reward_episode = 1000.0/len(self.env.track)
+def default_reward_callback(env):
+    reward = -0.1
 
-            # Cliping reward per expisode
-            reward_episode = np.clip(
-                    reward_episode, self.env.min_episode_reward, self.env.max_episode_reward)
-            self.env.reward += reward_episode
-            self.env.tile_visited_count += 1
-
+    left  = env.info['count_left_delay']  > 0
+    right = env.info['count_right_delay'] > 0
+    not_visited = env.info['visited'] == False
+    if (left & right).sum() > 0:
+        factor = 3
     else:
-        if tile.typename == TILE_NAME:
-            obj.tiles.remove(tile)
-            self.env.remove_current_tile(tile.id, tile.lane)
-            #print tile.road_friction, "DEL", len(obj.tiles) -- should delete to zero when on grass (this works)
+        factor = 1 
 
-            # Registering last contact with track
-            self.env.last_touch_with_track = self.env.t
+    # Positive reward
+    reward += (( (left | right) & not_visited).sum() / factor)
+    env.tile_visited_count += (left | right).sum()
+
+    # Negative reward
+    obs_not_visited = env.obstacle_contacts['visited'] == False
+    obs_count = (env.obstacle_contacts[obs_not_visited]['count_delay'] > 0).sum()
+    reward += OBSTACLE_VALUE*obs_count
+
+    reward = np.clip(reward, 
+                    env.min_episode_reward, 
+                    env.max_episode_reward)
+
+    env.info['visited'][left | right] = True
+    env.info['count_right_delay'] = env.info['count_right']
+    env.info['count_left_delay']  = env.info['count_left']
+
+    different_count = env.obstacle_contacts['count'] != env.obstacle_contacts['count_delay']
+    zero_count = env.obstacle_contacts['count'] == 0
+    in_contact = env.obstacle_contacts['count'] > 0
+    env.obstacle_contacts['visited'][in_contact] = True
+    env.obstacle_contacts['visited'][(different_count) & (zero_count)] = False
+    env.obstacle_contacts['count_delay'] = env.obstacle_contacts['count']
+
+    done = False
+
+    if env.reward > 1000 or env.reward < -200:
+        # if too good or too bad
+        done = True
+    elif env.t - env.last_touch_with_track > env.max_time_out and \
+            env.max_time_out > 0.0:
+        # if too many seconds outside the track
+        done = True
+        if env.verbose > 0:
+            print("done by time")
+        reward += -100
+    else:
+        # if outside the map
+        x, y = env.car.hull.position
+        if not done and abs(x) > PLAYFIELD or abs(y) > PLAYFIELD:
+            done = True
+            step_reward = -100
+
+
+    return reward, done
 
 class FrictionDetector(contactListener):
-    def __init__(self, env, reward_callback=default_reward_callback):
+    def __init__(self, env):
         contactListener.__init__(self)
         self.env = env
-        self.reward_callback = reward_callback
     def BeginContact(self, contact):
         self._contact(contact, True)
     def EndContact(self, contact):
@@ -167,8 +193,36 @@ class FrictionDetector(contactListener):
             tile.color[2] = ROAD_COLOR[2]
         if not obj or "tiles" not in obj.__dict__: return
 
-        # Call reward function
-        self.reward_callback(tile, obj, begin, locals(), globals())
+        if begin:
+            if tile.typename == TILE_NAME:
+                self.env.add_current_tile(tile.id, tile.lane)
+                obj.tiles.add(tile)
+
+                #self.env.reward_tiles.add(tile)
+                if tile.lane == 1:
+                    self.env.info['count_right'][tile.id] += 1
+                    self.env.info['count_right_delay'][tile.id] += 1
+                else:
+                    self.env.info['count_left'][tile.id] += 1
+                    self.env.info['count_left_delay'][tile.id] += 1
+            elif tile.typename == OBSTACLE_NAME:
+                #self.env.reward_tiles.add(tile)
+                self.env.obstacle_contacts['count'][tile.id] += 1
+                self.env.obstacle_contacts['count_delay'][tile.id] += 1
+        else:
+            if tile.typename == TILE_NAME:
+                obj.tiles.remove(tile)
+                self.env.remove_current_tile(tile.id, tile.lane)
+
+                if tile.lane == 1:
+                    self.env.info['count_right'][tile.id] -= 1
+                else:
+                    self.env.info['count_left'][tile.id] -= 1
+
+                # Registering last contact with track
+                self.env.last_touch_with_track = self.env.t
+            elif tile.typename == OBSTACLE_NAME:
+                self.env.obstacle_contacts['count'][tile.id] -= 1
             
 class CarRacing(gym.Env, EzPickle):
     '''
@@ -274,6 +328,7 @@ class CarRacing(gym.Env, EzPickle):
         self.road = None
         self.car = None
         self.reward = 0.0
+        self.reward_tiles = set() # to save all allements that the car has had contact with to use in the reward function
         self.prev_reward = 0.0
         self.highest_reward = 0.0
         self._current_nodes = {} # A dict of dicts, dict[id][lane]=direction you can be in more than one tile at the same time, e.g. intersections
@@ -309,6 +364,8 @@ class CarRacing(gym.Env, EzPickle):
             random_obstacle_x_position=True,
             random_obstacle_shape=True,
             ):
+
+        self.reward_fn = reward_fn
         
         # Set random obstacle shape property
         self.random_obstacle_shape = random_obstacle_shape
@@ -385,7 +442,7 @@ class CarRacing(gym.Env, EzPickle):
         self.observation_space = spaces.Box(low=0, high=255, shape=state_shape, dtype=np.uint8)
 
         # Set custom reward function
-        self.contactListener_keepref = FrictionDetector(self, reward_callback=reward_fn)
+        self.contactListener_keepref = FrictionDetector(self)
         self.world = Box2D.b2World((0,0), contactListener=self.contactListener_keepref)
 
 
@@ -827,7 +884,7 @@ class CarRacing(gym.Env, EzPickle):
                 if len(possible_candidates) == 0: break
 
         # This creates the objects for the obstacles
-        for idx in obstacle_tiles_ids:
+        for count,idx in enumerate(obstacle_tiles_ids):
             if self.random_obstacle_x_position:
                 alpha, beta, x,y = self._get_rnd_position_inside_lane(idx)
             else:
@@ -870,6 +927,8 @@ class CarRacing(gym.Env, EzPickle):
             t.road_friction = 1.0
             t.road_visited  = True
             t.typename = OBSTACLE_NAME
+            t.road_visited = False
+            t.id = count
             t.fixtures[0].sensor = True
             self.obstacles_poly.append(( vertices, t.color ))
             self.road.append(t)
@@ -893,6 +952,11 @@ class CarRacing(gym.Env, EzPickle):
             ('angle', 'float16'),
             ('ang_class','float16'),
             ('lanes',np.ndarray),
+            ('count_left', 'int'),
+            ('count_right', 'int'),
+            ('count_left_delay', 'int'),
+            ('count_right_delay', 'int'),
+            ('visited',bool),
             ('obstacles',np.ndarray)])
 
         info['ang_class'] = np.nan
@@ -1280,6 +1344,9 @@ class CarRacing(gym.Env, EzPickle):
 
         self._create_obstacles()
 
+        self.obstacle_contacts = np.zeros((len(self.obstacles_poly)),dtype=
+                [('count',int),('count_delay',int),('visited',bool)])
+
         return True
 
     def reset(self):
@@ -1358,27 +1425,13 @@ class CarRacing(gym.Env, EzPickle):
 
         step_reward = 0
         done = False
-        if action is not None: # First step without action, called from reset()
-            self.reward -= 0.1
-            # We actually don't want to count fuel spent, we want car to be faster.
-            #self.reward -=  10 * self.car.fuel_spent / ENGINE_POWER
-            self.car.fuel_spent = 0.0
-            step_reward = self.reward - self.prev_reward
-            self.prev_reward = self.reward
-            if self.reward > 1000:
-                done = True
-            if self.reward < -200:
-                done = True
-            if self.t - self.last_touch_with_track > self.max_time_out and \
-                    self.max_time_out > 0.0:
-                done = True
-                if self.verbose > 0:
-                    print("done by time")
-                step_reward = -100
-            x, y = self.car.hull.position
-            if not done and abs(x) > PLAYFIELD or abs(y) > PLAYFIELD:
-                done = True
-                step_reward = -100
+        if action is not None:
+            step_reward,done = self.reward_fn(self)
+        
+        self.car.fuel_spent = 0.0
+
+        self.reward += step_reward
+
         return self.state, step_reward, done, {}
 
     def render(self, mode='human'):
@@ -1997,9 +2050,8 @@ def play(env):
             if steps % 200 == 0 or done:
                 #print("\naction " + str(["{:+0.2f}".format(x) for x in a]))
                 print("step {} total_reward {:+0.2f}".format(steps, total_reward))
-                #import matplotlib.pyplot as plt
-                #plt.imshow(s)
-                #plt.savefig("test.jpeg")
+                steps += 1
+                print("step {} total_reward {:+0.2f}".format(steps, total_reward))
             steps += 1
             if not record_video: # Faster, but you can as well call env.render() every time to play full window.
                 env.render()
