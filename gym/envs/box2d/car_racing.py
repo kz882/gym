@@ -78,7 +78,7 @@ BORDER_NAME    = 'border'
 GRASS_NAME     = 'grass'
 
 # Debug actions
-SHOW_NEXT_N_TILES         = 10       # Show the next N tiles
+SHOW_NEXT_N_TILES         = 0       # Show the next N tiles
 SHOW_ENDS_OF_TRACKS       = 0       # Shows with red dots the end of track
 SHOW_START_OF_TRACKS      = 0       # Shows with green dots the end of track
 SHOW_INTERSECTION_POINTS  = 0       # Shows with yellow dots the intersections of main track
@@ -162,6 +162,7 @@ def default_reward_callback(env):
         done = True
     else:
         reward,done = env.check_timeout(reward,done)
+        reward,done = env.check_unvisited_tiles(reward,done)
 
         # if outside the map
         x, y = env.car.hull.position
@@ -450,6 +451,11 @@ class CarRacing(gym.Env, EzPickle):
         # Set custom reward function
         self.contactListener_keepref = FrictionDetector(self)
         self.world = Box2D.b2World((0,0), contactListener=self.contactListener_keepref)
+
+    def check_unvisited_tiles(self,reward,done):
+        if self.info['visited'].sum() / self.info.shape[0] > 0.5:
+            done = True
+        return reward,done
 
     def check_timeout(self,reward,done):
         if self.t - self.last_touch_with_track > self.max_time_out and \
