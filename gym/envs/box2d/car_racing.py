@@ -66,6 +66,8 @@ BORDER = 8/SCALE
 BORDER_MIN_COUNT = 4
 NUM_TILES_FOR_AVG = 5 # The number of tiles before and after to takeinto account for angle
 TILES_IN_SCREEN = 20  # The number of tiles that fit in a screen (arange as track)
+HARD_NEG_REWARD = 100 # For actions like going out or timeout
+SOFT_NEG_REWARD = 0.1 # For actions like living
 
 ROAD_COLOR = [0.4, 0.4, 0.4]
 
@@ -110,12 +112,20 @@ def key_release_example(k, mod):
         pass
 
 def default_reward_callback(env):
-    reward = -0.1
+    reward = -SOFT_NEG_REWARD
 
     left  = env.info['count_left_delay']  > 0
     right = env.info['count_right_delay'] > 0
+    track0 = env.info['track'] == 0
+    track1 = env.info['track'] == 1
     not_visited = env.info['visited'] == False
-    if (left & right).sum() > 0:
+
+    # To allow changes of lane in intersections without lossing points
+    if (left & right & track0).sum() > 0 and (left & right & track1).sum() > 0:
+        factor = 3
+    elif (left & right & track1).sum() > 0 and (((left | right) & track0).sum() == 0) :
+        factor = 3
+    elif (left & right & track0).sum() > 0 and (((left | right) & track1).sum() == 0) :
         factor = 3
     else:
         factor = 1 
@@ -130,8 +140,8 @@ def default_reward_callback(env):
     reward += OBSTACLE_VALUE*obs_count
 
     reward = np.clip(reward, 
-                    env.min_episode_reward, 
-                    env.max_episode_reward)
+                    env.min_step_reward, 
+                    env.max_step_reward)
 
     env.info['visited'][left | right] = True
     env.info['count_right_delay'] = env.info['count_right']
@@ -149,20 +159,14 @@ def default_reward_callback(env):
     if env.reward > 1000 or env.reward < -200:
         # if too good or too bad
         done = True
-    elif env.t - env.last_touch_with_track > env.max_time_out and \
-            env.max_time_out > 0.0:
-        # if too many seconds outside the track
-        done = True
-        if env.verbose > 0:
-            print("done by time")
-        reward += -100
     else:
+        reward,done = env.check_timeout(reward,done)
+
         # if outside the map
         x, y = env.car.hull.position
         if not done and abs(x) > PLAYFIELD or abs(y) > PLAYFIELD:
             done = True
-            step_reward = -100
-
+            reward -= HARD_NEG_REWARD
 
     return reward, done
 
@@ -220,9 +224,10 @@ class FrictionDetector(contactListener):
                     self.env.info['count_left'][tile.id] -= 1
 
                 # Registering last contact with track
-                self.env.last_touch_with_track = self.env.t
+                self.env.update_contact_with_track()
             elif tile.typename == OBSTACLE_NAME:
                 self.env.obstacle_contacts['count'][tile.id] -= 1
+
             
 class CarRacing(gym.Env, EzPickle):
     '''
@@ -279,12 +284,12 @@ class CarRacing(gym.Env, EzPickle):
                                      HARD_RIGHT, SOFT_STRAIGHT, HARD_STRAIGHT, SOFT_BREAK, 
                                      HARD_BREAK] 
 
-    min_episode_reward (flt -inf)    To limit the min reward the agent can have in an episode, -np.inf means no limit
+    min_step_reward (flt -inf)    To limit the min reward the agent can have in an episode, -np.inf means no limit
                                      it is good to control the gradient
                                      Having max and min values for reward makes learning more stable (i.e. less 
                                      variance) but so far it does not make it learn faster
 
-    max_episode_reward (flt +inf)    To limit the max reward the agent can have in an episode, +np.inf means no limit.
+    max_step_reward (flt +inf)    To limit the max reward the agent can have in an episode, +np.inf means no limit.
                                      It is good to control the learned speed of the car, to avoid high speeds 1 is 
                                      ok. It is also good to control the gradient.
                                      Having max and min values for reward makes learning more stable (i.e. less 
@@ -354,8 +359,8 @@ class CarRacing(gym.Env, EzPickle):
             frames_per_state=1,
             discretize_actions='hard',
             allow_reverse=0,
-            min_episode_reward=-np.inf,
-            max_episode_reward=+np.inf,
+            min_step_reward=-np.inf,
+            max_step_reward=+np.inf,
             animate_zoom=False,
             reward_fn=default_reward_callback,
             key_press_fn=None,
@@ -425,10 +430,10 @@ class CarRacing(gym.Env, EzPickle):
         # not including "soft" because it is not implemented yet
         self.discretize_actions = discretize_actions if discretize_actions in [None,"hard"] else "hard"
         
-        if max_episode_reward < min_episode_reward:
-            raise AttributeError("max_episode_reward must be greater than min_episode_reward")
-        self.max_episode_reward = max_episode_reward
-        self.min_episode_reward = min_episode_reward
+        if max_step_reward < min_step_reward:
+            raise AttributeError("max_step_reward must be greater than min_step_reward")
+        self.max_step_reward = max_step_reward
+        self.min_step_reward = min_step_reward
 
         state_shape = tuple(state_shape)
         # Incorporating reverse now the np.array([-1,0,0]) becomes np.array[-1,-1,0]
@@ -445,6 +450,19 @@ class CarRacing(gym.Env, EzPickle):
         self.contactListener_keepref = FrictionDetector(self)
         self.world = Box2D.b2World((0,0), contactListener=self.contactListener_keepref)
 
+    def check_timeout(self,reward,done):
+        if self.t - self.last_touch_with_track > self.max_time_out and \
+                self.max_time_out > 0.0:
+            # if too many seconds outside the track
+            done = True
+            if self.verbose > 0:
+                print("done by time")
+            reward -= HARD_NEG_REWARD
+        return reward,done
+        
+
+    def update_contact_with_track(self):
+        self.last_touch_with_track = self.t
 
     def set_velocity(self, velocity=[0.0,0.0]):
         self.car.hull.linearVelocity.Set(velocity[0],velocity[1])

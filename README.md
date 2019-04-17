@@ -133,18 +133,8 @@ Returns: [beta, x, y].
 - [x] ~~Implement number of frames to return as observations (state), use `frames_per_state` in config~~
 - [x] ~~Hard Discretise action space~~
 - [x] ~~Clip reward per episode, use `max/min_episode_reward`~~
-- [ ] Fix sizes to use with cnn and different configs for states
-- [ ] Soft Discretise action space
-- [ ] Figure out how to implement the reward efficiently
-- [ ] Detect change of line (DOES NOT MAKE SENSE TO IMPLEMENT RIGHT NOW)
-- [ ] Get tile with certain conditions:
-
-   - [x] ~~With certain angle (e.g. >40º <- that is possible using `info['angle']` but it is not recommended, use get_rnd_tile_by_type_angle)~~
-   - [x] ~~In an T-junction~~
-   - [x] ~~In an X-junction~~
-   - [ ] With obstacle in front (DOES NOT MAKE SENSE TO IMPLEMENT RIGHT NOW)
-
-- [ ] Apply (random) force to the car (CONSIDER IF IT IS WORTH IT IMPLEMENTING IT)
+- [x] ~~Implement the reward efficiently~~
+- [x] ~~Detect change of line~~
 - [x] ~~Set speed of car~~
 - [x] ~~Set position of car~~
 - [x] ~~Add small distance to d to joing tracks, bigger than x and greater than 50~~
@@ -155,6 +145,15 @@ Returns: [beta, x, y].
 - [x] ~~Differentiate intersections~~
 - [x] ~~Add obstacles~~
 - [x] ~~Get outside position (use `get_position_outside(d)`)~~
+- [ ] Fix sizes to use with cnn and different configs for states
+- [ ] Get tile with certain conditions:
+
+   - [x] ~~With certain angle (e.g. >40º <- that is possible using `info['angle']` but it is not recommended, use get_rnd_tile_by_type_angle)~~
+   - [x] ~~In an T-junction~~
+   - [x] ~~In an X-junction~~
+   - [ ] With obstacle in front (DOES NOT MAKE SENSE TO IMPLEMENT RIGHT NOW)
+
+- [ ] Apply (random) force to the car (CONSIDER IF IT IS WORTH IT IMPLEMENTING IT)
 
 ### low priority:
 
@@ -163,7 +162,6 @@ Returns: [beta, x, y].
 - [ ] Differentiate x from merge juntions
 - [ ] Add road lines graphically 
 - [ ] Fix joints of roads in some weird cases
-- [ ] Change img of car when not racing
  
 --- 
 
