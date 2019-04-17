@@ -139,6 +139,7 @@ def default_reward_callback(env):
     obs_count = (env.obstacle_contacts[obs_not_visited]['count_delay'] > 0).sum()
     reward += OBSTACLE_VALUE*obs_count
 
+    full_reward = reward
     reward = np.clip(reward, 
                     env.min_step_reward, 
                     env.max_step_reward)
@@ -168,7 +169,7 @@ def default_reward_callback(env):
             done = True
             reward -= HARD_NEG_REWARD
 
-    return reward, done
+    return reward, full_reward, done
 
 class FrictionDetector(contactListener):
     def __init__(self, env):
@@ -333,7 +334,7 @@ class CarRacing(gym.Env, EzPickle):
         self.road = None
         self.car = None
         self.reward = 0.0
-        self.reward_tiles = set() # to save all allements that the car has had contact with to use in the reward function
+        self.full_reward = 0.0
         self.prev_reward = 0.0
         self.highest_reward = 0.0
         self._current_nodes = {} # A dict of dicts, dict[id][lane]=direction you can be in more than one tile at the same time, e.g. intersections
@@ -509,7 +510,7 @@ class CarRacing(gym.Env, EzPickle):
                 id_relative -= len(self.tracks[self.info[id]['track']-1])
         except Exception as e:
             print(e)
-            print("error, see line 421 of car_racing")
+            print("error, see line 512 of car_racing")
             print("info len", str(self.info.shape))
             print("track len", str(self.track.shape))
             return None
@@ -1334,31 +1335,35 @@ class CarRacing(gym.Env, EzPickle):
                             vertices = [road2_r, road2_l, points[0], points[1]]
                         joint = True
                     
-                    # TODO CHECK IF THIS AVOID THE ERROR OF ASSERTION COUNT >= 3
-                    # TODO remove this try and find a way of really catching the errer
-                    try:
+                    test_set = set([tuple(p) for p in vertices])
+                    if len(test_set) >= 3:
+                        # TODO CHECK IF THIS AVOID THE ERROR OF ASSERTION COUNT >= 3
+                        # TODO remove this try and find a way of really catching the errer
+                        #try:
                         t = self.world.CreateStaticBody( fixtures = fixtureDef(
                             shape=polygonShape(vertices=vertices)
                             ))
-                    except AssertionError as e:
-                        print(str(e))
-                        print(vertices)
-                        return False
-                    t.userData = t
-                    i = 0
-                    c = 0.01*(i%3)
-                    if joint and SHOW_JOINTS:
-                        t.color = [1,1,1]
+                        #except AssertionError as e:
+                            #print(str(e))
+                            #print(vertices)
+                            #return False
+                        t.userData = t
+                        i = 0
+                        c = 0.01*(i%3)
+                        if joint and SHOW_JOINTS:
+                            t.color = [1,1,1]
+                        else:
+                            t.color = [ROAD_COLOR[0], ROAD_COLOR[1], ROAD_COLOR[2]] 
+                        t.road_visited = False
+                        t.typename = TILE_NAME
+                        t.road_friction = 1.0
+                        t.id = j
+                        t.lane = lane
+                        t.fixtures[0].sensor = True
+                        self.road_poly.append(( vertices, t.color, t.id, t.lane ))
+                        self.road.append(t)
                     else:
-                        t.color = [ROAD_COLOR[0], ROAD_COLOR[1], ROAD_COLOR[2]] 
-                    t.road_visited = False
-                    t.typename = TILE_NAME
-                    t.road_friction = 1.0
-                    t.id = j
-                    t.lane = lane
-                    t.fixtures[0].sensor = True
-                    self.road_poly.append(( vertices, t.color, t.id, t.lane ))
-                    self.road.append(t)
+                        print("saved from error")
 
         self._create_obstacles()
 
@@ -1375,6 +1380,7 @@ class CarRacing(gym.Env, EzPickle):
         '''
         self._destroy()
         self.reward = 0.0
+        self.full_reward = 0.0
         self.highest_reward = 0.0
         self.last_touch_with_track = 0.0
         self.prev_reward = 0.0
@@ -1442,13 +1448,15 @@ class CarRacing(gym.Env, EzPickle):
         self._update_state(self.render("state_pixels"))
 
         step_reward = 0
+        full_step_reward = 0
         done = False
         if action is not None:
-            step_reward,done = self.reward_fn(self)
+            step_reward,full_step_reward,done = self.reward_fn(self)
         
         self.car.fuel_spent = 0.0
 
         self.reward += step_reward
+        self.full_reward += full_step_reward
 
         return self.state, step_reward, done, {}
 
@@ -1458,6 +1466,9 @@ class CarRacing(gym.Env, EzPickle):
             self.viewer = rendering.Viewer(WINDOW_W, WINDOW_H)
             self.score_label = pyglet.text.Label('Score: 0000', font_size=20,
                 x=20, y=WINDOW_H*1.5/40.00, anchor_x='left', anchor_y='center',
+                color=(255,255,255,255))
+            self.full_score_label = pyglet.text.Label('Full Score: 0000', font_size=20,
+                x=250, y=WINDOW_H*1.5/40.00, anchor_x='left', anchor_y='center',
                 color=(255,255,255,255))
             self.speed_label = pyglet.text.Label('Speed: 000', font_size=20,
                 x=20, y=WINDOW_H*3.7/40.00, anchor_x='left', anchor_y='center',
@@ -1488,7 +1499,7 @@ class CarRacing(gym.Env, EzPickle):
         # The angle is the same as the car, not as the speed
         #if np.linalg.norm(vel) > 0.5:
         #    angle = math.atan2(vel[0], vel[1])
-        self.transform.set_scale(zoom, zoom)
+        self.transform.set_scale(zoom, zoom) 
         if ZOOM_OUT:
             self.transform.set_translation(WINDOW_W/2, WINDOW_H/2)
             self.transform.set_rotation(0) 
@@ -1859,9 +1870,11 @@ class CarRacing(gym.Env, EzPickle):
         horiz_ind(36, -0.4*self.car.hull.angularVelocity, (1,0,0))
         gl.glEnd()
         self.score_label.text = "Score: %04i" % self.reward
+        self.full_score_label.text = "Full Score: %04i" % self.full_reward
         self.speed_label.text = "Speed: %0.2f" % np.linalg.norm(self.car.hull.linearVelocity)
         self.angle_label.text = "Angle: %0.2f" % self.car.wheels[0].joint.angle
         self.score_label.draw()
+        self.full_score_label.draw()
         self.speed_label.draw()
         self.angle_label.draw()
 
