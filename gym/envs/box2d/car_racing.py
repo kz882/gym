@@ -417,6 +417,11 @@ class CarRacing(gym.Env, EzPickle):
         state_shape = [STATE_H, STATE_W]
         if not self.grayscale: 
             state_shape.append(3)
+            if frames_per_state > 1:
+                print("####################################")
+                print("Warning: making frames_per_state = 1")
+                print("No support for several frames in RGB")
+                frames_per_state = 1
 
         # Show or not back bottom info panel
         self.show_info_panel = show_info_panel
@@ -424,7 +429,7 @@ class CarRacing(gym.Env, EzPickle):
         # Frames per state
         self.frames_per_state = frames_per_state if frames_per_state > 0 else 1
         if self.frames_per_state > 1:
-            state_shape.insert(0,self.frames_per_state)
+            state_shape.append(self.frames_per_state)
 
             lst = list(range(self.frames_per_state))
             self._update_index = [lst[-1]] + lst[:-1]
@@ -1419,8 +1424,8 @@ class CarRacing(gym.Env, EzPickle):
 
     def _update_state(self,new_frame):
         if self.frames_per_state > 1:
-            self.state[-1] = new_frame
-            self.state = self.state[self._update_index]
+            self.state[:,:,-1] = new_frame
+            self.state = self.state[:,:,self._update_index]
         else:
             self.state = new_frame
 
@@ -1582,7 +1587,7 @@ class CarRacing(gym.Env, EzPickle):
                     frame = state
                 else:
                     frame_str = "_frame%i" % f
-                    frame = state[f]
+                    frame = state[:,:,f]
 
                 if self.grayscale:
                     frame = np.stack([frame,frame,frame], axis=-1)
@@ -2066,8 +2071,8 @@ def play(env):
         if k==key.X:     env.switch_xt_intersections()
         if k==key.E:     env.switch_end_of_track()
         if k==key.S:     env.switch_start_of_track()
+        if k==key.T:     env.screenshot('./')
         if k==key.Q:     sys.exit()
-
 
     env.render()
     record_video = False
@@ -2096,21 +2101,13 @@ def play(env):
                 env.render()
             if done or restart: break
 
-            # every 100 steps save screenshot
-            if False:
-                if not os.path.exists('./screenshots'):
-                    os.makedirs('./screenshots')
-                if steps % 200 == 0:
-                    env.screenshot("./screenshots")
-                    pass
-
     env.close()
 
 if __name__=="__main__":
 
     env = CarRacing(
             allow_reverse=False, 
-            grayscale=0,
+            grayscale=1,
             show_info_panel=1,
             discretize_actions=None,
             num_tracks=2,

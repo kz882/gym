@@ -90,6 +90,21 @@ The map of the track now is configurable but still completely random, now the ma
 * `R`: Get new track `reset`
 * `Q`: quit, close game
 
+and in general de controls are (while playing)
+
+| **key** | **Action** |
+| --- | --- |
+| `D` | Set trace (debug) |
+| `R` | Reset the map |
+| `Z` | Zoom in/out |
+| `G` | Shows the intersection groups |
+| `I` | Shows intersection points |
+| `X` | Shows X junctions |
+| `E` | Shows end of track |
+| `S` | Shows start of track |
+| `T` | Take screenshot |
+| `Q` | Exit |
+
 ### Some other interesting features
 
 * `key_press_function` and `key_release_fn`: It is a initialization parameter, it is very useful to, for example change a variable during executing. The most useful case is start rendering the environemt while training, to have visual feedback of how the training is going
