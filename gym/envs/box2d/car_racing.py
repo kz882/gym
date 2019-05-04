@@ -1471,6 +1471,14 @@ class CarRacing(gym.Env, EzPickle):
 
         return self.state, step_reward, done, {}
 
+    def _render_addition_objects(self):
+        """
+        This function has the only objective to be a way for the classes inhereting
+        from this class to add its own obects to render, and avoiding overwriting
+        this function
+        """
+        pass
+
     def render(self, mode='human'):
         if self.viewer is None:
             from gym.envs.classic_control import rendering
@@ -1521,6 +1529,7 @@ class CarRacing(gym.Env, EzPickle):
             self.transform.set_rotation(angle)
 
         self.car.draw(self.viewer, mode!="state_pixels")
+        self._render_addition_objects()
 
         arr = None
         win = self.viewer.window
