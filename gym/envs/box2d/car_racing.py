@@ -370,25 +370,19 @@ class CarRacing(gym.Env, EzPickle):
             verbose=1,
             random_obstacle_x_position=True,
             random_obstacle_shape=True,
+            auto_render=False,
             ):
 
+        self.auto_render = auto_render
         self.reward_fn = reward_fn
-        
-        # Set random obstacle shape property
         self.random_obstacle_shape = random_obstacle_shape
-            
-        # set random obstacle x position property
         self.random_obstacle_x_position = random_obstacle_x_position
-
-        # Set verbose
         self.verbose = verbose
+        self.animate_zoom = animate_zoom
 
         # Setting key press callback functions
         self.key_press_fn = key_press_fn
         self.key_release_fn = key_press_fn 
-        
-        # Animate zoom
-        self.animate_zoom = animate_zoom
         
         # Number of lanes, 1 or 2
         self.num_lanes = num_lanes  if num_lanes in [1,2] else 1
@@ -456,6 +450,9 @@ class CarRacing(gym.Env, EzPickle):
         # Set custom reward function
         self.contactListener_keepref = FrictionDetector(self)
         self.world = Box2D.b2World((0,0), contactListener=self.contactListener_keepref)
+
+    def get_org_config(self):
+        return str(self._org_config)
 
     def check_unvisited_tiles(self,reward,done):
         if self.info['visited'].sum() / self.info.shape[0] > 0.5:
@@ -1469,9 +1466,12 @@ class CarRacing(gym.Env, EzPickle):
         self.reward += step_reward
         self.full_reward += full_step_reward
 
+        if self.auto_render:
+            self.render()
+
         return self.state, step_reward, done, {}
 
-    def _render_addition_objects(self):
+    def _render_additional_objects(self):
         """
         This function has the only objective to be a way for the classes inhereting
         from this class to add its own obects to render, and avoiding overwriting
@@ -1497,11 +1497,8 @@ class CarRacing(gym.Env, EzPickle):
                 color=(255,255,255,255))
             self.transform = rendering.Transform()
             
-            if self.key_press_fn is not None:
-                self.viewer.window.on_key_press = self.key_press_fn
-            if self.key_release_fn is not None:
-                self.viewer.window.on_key_release = self.key_release_fn
-
+            self.viewer.window.on_key_press = self._key_press
+            self.viewer.window.on_key_release = self._key_release
         if "t" not in self.__dict__: return  # reset() not called yet
 
         if self.animate_zoom:
@@ -1529,7 +1526,6 @@ class CarRacing(gym.Env, EzPickle):
             self.transform.set_rotation(angle)
 
         self.car.draw(self.viewer, mode!="state_pixels")
-        self._render_addition_objects()
 
         arr = None
         win = self.viewer.window
@@ -1555,11 +1551,12 @@ class CarRacing(gym.Env, EzPickle):
             t.disable()
             if self.show_info_panel:
                 self.render_indicators(WINDOW_W, WINDOW_H)  # TODO: find why 2x needed, wtf
+            self._render_additional_objects()
             image_data = pyglet.image.get_buffer_manager().get_color_buffer().get_image_data()
             arr = np.fromstring(image_data.data, dtype=np.uint8, sep='')
             arr = arr.reshape(VP_H, VP_W, 4)
             arr = arr[::-1, :, 0:3]
-            if self.grayscale:
+            if self.grayscale and mode !="rgb_array":
                 arr_bw = np.dot(arr[...,:3], [0.299, 0.587, 0.114])
                 arr = arr_bw
             
@@ -1578,10 +1575,25 @@ class CarRacing(gym.Env, EzPickle):
                 geom.render()
             t.disable()
             self.render_indicators(WINDOW_W, WINDOW_H)
+            self._render_additional_objects()
             win.flip()
 
         self.viewer.onetime_geoms = []
         return arr
+
+    def _key_press(self,k,mod):
+        from pyglet.window import key
+        if k == key.S:# S from Save
+            self.auto_render = not self.auto_render
+        if k == key.T: # T from Take screnshot
+            self.screenshot()
+
+        if self.key_press_fn is not None:
+            self.key_press_fn(k,mod)
+
+    def _key_release(self,k,mod):
+        if self.key_release_fn is not None:
+            self.key_release_fn(k,mod)
     
     def screenshot(self, dest="./", name=None):
         ''' 
@@ -2041,7 +2053,6 @@ def play(env):
     
     env:        CarRacing env
     """
-    from pyglet.window import key
 
     discretize = env.discretize_actions
     if discretize == None:
