@@ -161,6 +161,7 @@ def default_reward_callback(env):
         # if too good or too bad
         done = True
     else:
+        if not env.allow_outside: reward,done = env.check_outside(reward,done)
         reward,done = env.check_timeout(reward,done)
         reward,done = env.check_unvisited_tiles(reward,done)
 
@@ -371,8 +372,10 @@ class CarRacing(gym.Env, EzPickle):
             random_obstacle_x_position=True,
             random_obstacle_shape=True,
             auto_render=False,
+            allow_outside=True,
             ):
 
+        self.allow_outside = allow_outside
         self.auto_render = auto_render
         self.reward_fn = reward_fn
         self.random_obstacle_shape = random_obstacle_shape
@@ -466,6 +469,15 @@ class CarRacing(gym.Env, EzPickle):
             done = True
             if self.verbose > 0:
                 print("done by time")
+            reward -= HARD_NEG_REWARD
+        return reward,done
+
+    def check_outside(self,reward,done):
+        right = self.info['count_right'] > 0
+        left  = self.info['count_left']  > 0
+        if (left|right).sum() == 0:
+            # In case it is outside the track 
+            done = True
             reward -= HARD_NEG_REWARD
         return reward,done
         
@@ -2053,7 +2065,7 @@ def play(env):
     
     env:        CarRacing env
     """
-
+    from pyglet.window import key
     discretize = env.discretize_actions
     if discretize == None:
         a = np.array( [0.0, 0.0, 0.0] )
