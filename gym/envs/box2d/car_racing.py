@@ -719,6 +719,7 @@ class CarRacing(gym.Env, EzPickle):
         if self.info[node_id]['t'] and self.info[node_id]['track'] > 0:
             intersection['straight'] = None
         else:
+            # TODO sometimes where the tracks only touch the straight route is in the other track
             s_node = (relative_id + direction) % len(self.tracks[self.info[node_id]['track']])
             s_node = node_id - relative_id + s_node
             intersection['straight'] = s_node
@@ -769,22 +770,22 @@ class CarRacing(gym.Env, EzPickle):
 
         return intersection
 
-    def _get_track(self, CHECKPOINTS, TRACK_RAD=900/SCALE):
+    def _get_track(self, num_checkpoints, track_rad=900/SCALE, x_bias=0, y_bias=0):
 
-        CHECKPOINTS = 12
+        #num_checkpoints = 12
 
         # Create checkpoints
         checkpoints = []
-        for c in range(CHECKPOINTS):
-            alpha = 2*math.pi*c/CHECKPOINTS + self.np_random.uniform(0, 2*math.pi*1/CHECKPOINTS)
-            rad = self.np_random.uniform(TRACK_RAD/3, TRACK_RAD)
+        for c in range(num_checkpoints):
+            alpha = 2*math.pi*c/num_checkpoints + self.np_random.uniform(0, 2*math.pi*1/num_checkpoints)
+            rad = self.np_random.uniform(track_rad/3, track_rad)
             if c==0:
                 alpha = 0
-                rad = 1.5*TRACK_RAD
-            if c==CHECKPOINTS-1:
-                alpha = 2*math.pi*c/CHECKPOINTS
-                self.start_alpha = 2*math.pi*(-0.5)/CHECKPOINTS
-                rad = 1.5*TRACK_RAD
+                rad = 1.5*track_rad
+            if c==num_checkpoints-1:
+                alpha = 2*math.pi*c/num_checkpoints
+                self.start_alpha = 2*math.pi*(-0.5)/num_checkpoints
+                rad = 1.5*track_rad
             checkpoints.append( (alpha, rad*math.cos(alpha), rad*math.sin(alpha)) )
 
         #print "\n".join(str(h) for h in checkpoints)
@@ -794,7 +795,7 @@ class CarRacing(gym.Env, EzPickle):
         self.road = []
 
         # Go from one checkpoint to another to create track
-        x, y, beta = 1.5*TRACK_RAD, 0, 0
+        x, y, beta = 1.5*track_rad, 0, 0
         dest_i = 0
         laps = 0
         track = []
@@ -870,6 +871,7 @@ class CarRacing(gym.Env, EzPickle):
         if well_glued_together > TRACK_DETAIL_STEP:
             return False
 
+        track = [[a,b,x+x_bias*2,y+y_bias*2] for a,b,x,y in track]
         track = [[track[i-1],track[i]] for i in range(len(track))]
         return track
 
@@ -1219,7 +1221,7 @@ class CarRacing(gym.Env, EzPickle):
         tracks = []
         cp = 12
         for _ in range(self.num_tracks):
-            track = self._get_track(cp*_)
+            track = self._get_track(int(cp*(1.**_)))
             if not track or len(track) == 0: return track
             track = np.array(track)
             tracks.append(track)
@@ -1628,11 +1630,15 @@ class CarRacing(gym.Env, EzPickle):
         if self.key_release_fn is not None:
             self.key_release_fn(k,mod)
     
-    def screenshot(self, dest="./", name=None):
+    def screenshot(self, dest="./", name=None,quality='low'):
         ''' 
-        Saves the current state
+        Saves the current state, quality 'low' or 'high', low will save the 
+        current state
         '''
-        state = self.state
+        if quality == 'low':
+            state = self.state
+        else:
+            state = self.render('rgb_array')
         if state is not None:
             for f in range(self.frames_per_state):
 
@@ -1701,31 +1707,51 @@ class CarRacing(gym.Env, EzPickle):
             removed_idx = set()
             intersection_keys = []
             intersection_vals = []
+            sec1_closer_to_center = None
             for i in range(intersections.shape[0]):
                 _, first = intersections[i-1]
                 last,_ = intersections[i]
 
                 sec1 = _get_section(first,last,track1)
                 sec2 = _get_section(first,last,track2)
+
+                sec1_distance_to_center = np.mean(np.linalg.norm(sec1[2:],axis=1))
+                sec2_distance_to_center = np.mean(np.linalg.norm(sec2[2:],axis=1))
                 
                 if sec1 is not False and sec2 is not False:
-                    max_min_d = 0
-                    remove = False
-                    min_distances = []
-                    for point in sec1[:,1]:
-                        dist = np.linalg.norm(sec2[:,1] - point, axis=1).min()
-                        min_distances.append(dist)
-                        #min_d = dist if max_min_d < dist else max_min_d
 
-                    # TODO here the roads that are very very close to the other 
-                    # track or that for several tiles keeps very close to the 
-                    # road can be removed
-                    min_distances = np.array(min_distances)
-                    if min_distances.max() < THRESHOLD*2: remove = True
-                    elif len(min_distances) > 25 and (min_distances[10:-10].min() < TRACK_WIDTH*3): remove = True
-                    elif len(min_distances) < 15: remove = True
-                    elif len(min_distances) > 50 and (min_distances < TRACK_WIDTH*2).sum() > 50: 
-                        remove = True
+                    remove = False
+                    if sec1_distance_to_center > sec2_distance_to_center:
+                        # sec1 is outside
+                        if sec1_closer_to_center is False:
+                            remove = True
+                        else:
+                            sec1_closer_to_center = False
+                    else:
+                        # sec1 is inside
+                        if sec1_closer_to_center is True:
+                            remove = True
+                        else:
+                            sec1_closer_to_center = True
+
+                    if remove is False:
+                        max_min_d = 0
+                        remove = False
+                        min_distances = []
+                        for point in sec1[:,1]:
+                            dist = np.linalg.norm(sec2[:,1] - point, axis=1).min()
+                            min_distances.append(dist)
+                            #min_d = dist if max_min_d < dist else max_min_d
+
+                        # TODO here the roads that are very very close to the other 
+                        # track or that for several tiles keeps very close to the 
+                        # road can be removed
+                        min_distances = np.array(min_distances)
+                        if min_distances.max() < THRESHOLD*2: remove = True
+                        elif len(min_distances) > 25 and (min_distances[10:-10].min() < TRACK_WIDTH*3): remove = True
+                        elif len(min_distances) < 15: remove = True
+                        elif len(min_distances) > 50 and (min_distances < TRACK_WIDTH*2).sum() > 50: 
+                            remove = True
 
                     # Removing tiles
                     if remove:
@@ -1768,6 +1794,7 @@ class CarRacing(gym.Env, EzPickle):
         # drawing road old way
         for poly, color, id, lane in self.road_poly:
             if SHOW_NEXT_N_TILES > 0 and id in self._trail_nodes and lane in self._trail_nodes[id]:
+            #if id in self.predictions_id:
                 color = [c/2 for c in color]
 
             gl.glColor4f(color[0], color[1], color[2], 1)

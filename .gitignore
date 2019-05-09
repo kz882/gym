@@ -9,6 +9,7 @@
 /dist/
 /build
 /screenshots
+/touching_tracks_tests
 
 # Virtualenv
 /env
