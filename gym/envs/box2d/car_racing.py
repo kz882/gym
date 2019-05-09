@@ -1215,6 +1215,24 @@ class CarRacing(gym.Env, EzPickle):
                         self.info[self.info['track'] == num_track][+i]['lanes'][lane] = True
                         self.info[self.info['track'] == num_track][-i]['lanes'][lane] = True
 
+    def _remove_unfinished_roads(self):
+        n = 0
+        to_remove = set()
+        # The problem only appears in track1
+        while n < len(self.tracks[0]):
+            prev_tile = self.tracks[0][n-2]
+            tile = self.tracks[0][n-1]
+            next_tile = self.tracks[0][n]
+
+            if any(tile[0] != prev_tile[1]) or any(tile[1] != next_tile[0]):
+                to_remove.update(n)
+                n -= 1
+            else:
+                n += 1
+        self.tracks[0] = np.delete(self.tracks[0], list(to_remove),axis=0)
+
+        if len(self.tracks[1]) < 5:
+            self.tracks[1] = np.delete(self.tracks[1], range(len(self.tracks[1])),axis=1)
         
     def _create_track(self):
 
@@ -1228,7 +1246,10 @@ class CarRacing(gym.Env, EzPickle):
 
         self.tracks = tracks
         if self._remove_roads() == False: return False
+        self._remove_unfinished_roads()
 
+        if self.tracks[1].size == 0: return False
+        
         self.track = np.concatenate(self.tracks)
 
         self._create_info()
@@ -1570,12 +1591,15 @@ class CarRacing(gym.Env, EzPickle):
         # To allow listening to keys during training
         win.switch_to()
         win.dispatch_events()
-        if mode=="rgb_array" or mode=="state_pixels":
+        if mode=="rgb_array" or mode=="state_pixels" or mode=="HD":
             win.clear()
             t = self.transform
             if mode=='rgb_array':
                 VP_W = VIDEO_W
                 VP_H = VIDEO_H
+            elif mode=='HD':
+                VP_H = WINDOW_H
+                VP_W = WINDOW_W
             else:
                 VP_W = STATE_W
                 VP_H = STATE_H
@@ -1632,13 +1656,15 @@ class CarRacing(gym.Env, EzPickle):
     
     def screenshot(self, dest="./", name=None,quality='low'):
         ''' 
-        Saves the current state, quality 'low' or 'high', low will save the 
+        Saves the current state, quality 'low','medium' or 'high', low will save the 
         current state
         '''
         if quality == 'low':
             state = self.state
-        else:
+        if quality == 'medium':
             state = self.render('rgb_array')
+        else:
+            state = self.render("HD")
         if state is not None:
             for f in range(self.frames_per_state):
 
