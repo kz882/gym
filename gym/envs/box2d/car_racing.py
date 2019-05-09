@@ -89,6 +89,10 @@ SHOW_TURNS                = 0       # Shows the 10 hardest turns
 SHOW_AXIS                 = 0       # Draws two lines where the x and y axis are
 ZOOM_OUT                  = 0       # Shows maps in general and does not do zoom
 if ZOOM_OUT: ZOOM         = 0.25    # Complementary to ZOOM_OUT
+# in lane -> 0: left, 1: right
+
+# Warning, Not optimized for training
+SHOW_BETA_PI_ANGLE        = 0       # Shows the direction of the beta+pi/2 angle in each tile
 
 # This will forbid predicting turns that has the oposite direction of the
 # do not modify it if you dont know what you are doing, this can have slight changes
@@ -1280,6 +1284,24 @@ class CarRacing(gym.Env, EzPickle):
             obstacle = np.random.binomial(1,0)
             alpha1, beta1, x1, y1 = self.track[j][1]
             alpha2, beta2, x2, y2 = self.track[j][0]
+            
+            # drawing angles of old config, the 
+            # black line is the angle (NOT WORKING)
+            if SHOW_BETA_PI_ANGLE:
+                if self.track_lanes == None: self.track_lanes = []
+                p1x = x1+np.cos(beta1)*0.2
+                p1y = y1+np.sin(beta1)*0.2
+                p2x = x1+np.cos(beta1)*0.2+np.cos(beta1+np.pi/2)*2
+                p2y = y1+np.sin(beta1)*0.2+np.sin(beta1+np.pi/2)*2
+                p3x = x1-np.cos(beta1)*0.2+np.cos(beta1+np.pi/2)*2
+                p3y = y1-np.sin(beta1)*0.2+np.sin(beta1+np.pi/2)*2
+                p4x = x1-np.cos(beta1)*0.2
+                p4y = y1-np.sin(beta1)*0.2
+                self.track_lanes.append([
+                    [p1x,p1y],
+                    [p2x,p2y],
+                    [p3x,p3y],
+                    [p4x,p4y]])
 
             for lane in range(self.num_lanes):
                 if self.info[j]['lanes'][lane]:
@@ -1413,6 +1435,7 @@ class CarRacing(gym.Env, EzPickle):
         self.obstacles_poly = []
         self.track = []
         self.tracks = []
+        self.track_lanes = None
         self.human_render = False
         self.state = np.zeros(self.observation_space.shape)
 
@@ -1557,7 +1580,6 @@ class CarRacing(gym.Env, EzPickle):
             gl.glViewport(0, 0, VP_W, VP_H)
             t.enable()
             self.render_road()
-            self.render_road_lines()
             for geom in self.viewer.onetime_geoms:
                 geom.render()
             t.disable()
@@ -1582,7 +1604,6 @@ class CarRacing(gym.Env, EzPickle):
             gl.glViewport(0, 0, WINDOW_W, WINDOW_H)
             t.enable()
             self.render_road()
-            self.render_road_lines()
             for geom in self.viewer.onetime_geoms:
                 geom.render()
             t.disable()
@@ -1779,25 +1800,6 @@ class CarRacing(gym.Env, EzPickle):
                 gl.glVertex3f(k*x + 0, k*y + k, 0)
                 gl.glVertex3f(k*x + k, k*y + k, 0)
 
-        
-        self._update_predictions()
-        self._render_tiles()
-        self._render_obstacles()
-
-        # drawing angles of old config, the 
-        # black line is the angle (NOT WORKING)
-        if False:
-            for track in self.tracks:
-                for point1, point2 in track:
-                    alpha1,beta1,x1,y1 = point1
-                    beta1 = alpha1
-
-                    gl.glColor4f(0, 0, 0, 0)
-                    gl.glVertex3f(x1+2,y1, 0)
-                    gl.glVertex3f(x1+2+math.cos(beta1)*2,y1+math.sin(beta1)*2, 0)
-                    gl.glVertex3f(x1-2+math.cos(beta1)*2,y1+math.sin(beta1)*2, 0)
-                    gl.glVertex3f(x1-2,y1, 0)
-
         # Ploting axis
         if SHOW_AXIS:
             # x-axis
@@ -1814,11 +1816,19 @@ class CarRacing(gym.Env, EzPickle):
             gl.glVertex3f(-2,-PLAYFIELD, 0)
 
         self.render_debug_clues()
-        
+        self._update_predictions()
+        self._render_tiles()
+        self._render_obstacles()
+        self._render_road_lines()
+
         gl.glEnd()
 
-    def render_road_lines(self):
-        pass        
+    def _render_road_lines(self):
+        if SHOW_BETA_PI_ANGLE:
+            for block in self.track_lanes:
+                gl.glColor4f(1, 1, 1, 0.8)
+                for x,y in block:
+                    gl.glVertex3f(x,y,0)
 
     def render_debug_clues(self):
 
