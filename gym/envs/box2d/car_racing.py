@@ -1249,6 +1249,13 @@ class CarRacing(gym.Env, EzPickle):
         self._remove_unfinished_roads()
 
         if self.tracks[1].size == 0: return False
+        if self.tracks[0].size == 0: 
+            print("error")
+            print(self.tracks[0].shape)
+            print(self.tracks[0].size)
+            print(self.tracks[1].shape)
+            print(self.tracks[1].size)
+            return False
         
         self.track = np.concatenate(self.tracks)
 
