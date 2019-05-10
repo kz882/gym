@@ -1239,9 +1239,16 @@ class CarRacing(gym.Env, EzPickle):
         tracks = []
         cp = 12
         for _ in range(self.num_tracks):
-            track = self._get_track(int(cp*(1.**_)))
+            track = self._get_track(int(cp*(1**_)),x_bias=-40*_,y_bias=40*_)
             if not track or len(track) == 0: return track
             track = np.array(track)
+            if _ > 0:
+                # adding rotation to decrease number of overlaps
+                theta = np.random.uniform()*2*np.pi
+                R = np.array([[np.cos(theta),-np.sin(theta)],[np.sin(theta),np.cos(theta)]])
+                track[:,0,2:] = (R@track[:,0,2:].T).T
+                track[:,1,2:] = (R@track[:,1,2:].T).T
+                track[:,:2] += theta
             tracks.append(track)
 
         self.tracks = tracks
@@ -1769,13 +1776,17 @@ class CarRacing(gym.Env, EzPickle):
                             min_distances.append(dist)
                             #min_d = dist if max_min_d < dist else max_min_d
 
-                        # TODO here the roads that are very very close to the other 
-                        # track or that for several tiles keeps very close to the 
-                        # road can be removed
                         min_distances = np.array(min_distances)
+
+                        # if the max minimal distance is too small
                         if min_distances.max() < THRESHOLD*2: remove = True
-                        elif len(min_distances) > 25 and (min_distances[10:-10].min() < TRACK_WIDTH*3): remove = True
-                        elif len(min_distances) < 15: remove = True
+                        # if the middle tiles of segment are too close to main track
+                        elif len(min_distances) > 25 and (min_distances[10:-10].min() < TRACK_WIDTH*3): 
+                            remove = True
+                        # if the segment is smaller than 15
+                        elif len(min_distances) < 5: 
+                            remove = True
+                        # if there are more than 50 tiles very close to main track
                         elif len(min_distances) > 50 and (min_distances < TRACK_WIDTH*2).sum() > 50: 
                             remove = True
 
