@@ -1255,18 +1255,21 @@ class CarRacing(gym.Env, EzPickle):
         if self._remove_roads() == False: return False
         self._remove_unfinished_roads()
 
-        if self.tracks[1].size == 0: return False
-        if self.tracks[0].size == 0: return False
-        
-        try:
-            self.track = np.concatenate(self.tracks)
-        except Exception as e:
-            print(e)
-            print(self.tracks[0].shape)
-            print(self.tracks[0].size)
-            print(self.tracks[1].shape)
-            print(self.tracks[1].size)
+        if self.tracks[1].size <= 5: 
             return False
+        if self.tracks[0].size <= 5: 
+            return False
+        if self.tracks[0].shape[1:] != self.tracks[1].shape[1:]:
+            return False
+        
+        self.track = np.concatenate(self.tracks)
+        #except Exception as e:
+            #print(e)
+            #print(self.tracks[0].shape)
+            #print(self.tracks[0].size)
+            #print(self.tracks[1].shape)
+            #print(self.tracks[1].size)
+            #return False
 
         self._create_info()
         self._set_lanes()
