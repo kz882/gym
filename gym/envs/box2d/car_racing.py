@@ -1239,10 +1239,12 @@ class CarRacing(gym.Env, EzPickle):
         tracks = []
         cp = 12
         for _ in range(self.num_tracks):
-            track = self._get_track(int(cp*(1**_)),x_bias=-40*_,y_bias=40*_)
+            # The following variables allow for more complex tracks but, it is also 
+            # harder to controll their properties and correct behaviour
+            track = self._get_track(int(cp*(1**_)))#,x_bias=-40*_,y_bias=40*_)
             if not track or len(track) == 0: return track
             track = np.array(track)
-            if _ > 0:
+            if _ > 0 and False:
                 # adding rotation to decrease number of overlaps
                 theta = np.random.uniform()*2*np.pi
                 R = np.array([[np.cos(theta),-np.sin(theta)],[np.sin(theta),np.cos(theta)]])
