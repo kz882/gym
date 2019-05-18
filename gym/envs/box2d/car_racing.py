@@ -1663,7 +1663,7 @@ class CarRacing(gym.Env, EzPickle):
 
     def _key_press(self,k,mod):
         from pyglet.window import key
-        if k == key.S:# S from Save
+        if k == key.S:# S from Show
             self.auto_render = not self.auto_render
         if k == key.T: # T from Take screnshot
             self.screenshot()
@@ -2134,17 +2134,17 @@ class CarRacing(gym.Env, EzPickle):
         if ZOOM_OUT: ZOOM = 0.25
         else:        ZOOM = 2.7
 
-    def set_press_fn(self,key_press_fn):
-        self.key_press_fn = key_press_fn
-        if self.viewer is not None:
-            if self.key_press_fn is not None:
-                self.viewer.window.on_key_press = self.key_press_fn
-
-    def set_release_fn(self,key_release_fn):
-        self.key_release_fn = key_release_fn 
-        if self.viewer is not None:
-            if self.key_release_fn is not None:
-                self.viewer.window.on_key_release = self.key_release_fn
+    # TODO delete if there is not error by commenting this out
+    #def set_press_fn(self,key_press_fn):
+        #self.key_press_fn = key_press_fn
+        #if self.viewer is not None:
+            #if self.key_press_fn is not None:
+                #self.viewer.window.on_key_press = self.key_press_fn
+    #def set_release_fn(self,key_release_fn):
+        #self.key_release_fn = key_release_fn 
+        #if self.viewer is not None:
+            #if self.key_release_fn is not None:
+                #self.viewer.window.on_key_release = self.key_release_fn
 
 def play(env):
     """
