@@ -1,14 +1,16 @@
-import sys, math
-import numpy as np
-from pdb import set_trace
-from PIL import Image
-from copy import copy, deepcopy
+import pickle
 import os
+import sys, math
+from copy import copy, deepcopy
+from pdb import set_trace
 
 import Box2D
+import cv2
+import pandas as pd
+import numpy as np
 from Box2D import b2Vec2
 from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape, revoluteJointDef, contactListener)
-import cv2
+from PIL import Image
 
 import gym
 from gym import spaces
@@ -323,7 +325,13 @@ class CarRacing(gym.Env, EzPickle):
 
     verbose             (int 1)      1: Print useful information, such as fail creating track msg, etc
     
-    random_obstacle_x_position (True)Whether or not to have the obstacles in a random x position or at the begining of each size of the track
+    random_obstacle_x_position (True)Whether or not to have the obstacles in a random x position or 
+                                     at the begining of each size of the track
+
+    load_tracks_from    (str None)   The folder from where the env can read and load the tracks,
+                                     there must be a id.pkl for each track containing the info, track
+                                     and tracks from the env. There also has to be a file called
+                                     list.csv containing the ids with bool columns x,t,obstacles
 
     '''
     metadata = {
@@ -377,6 +385,7 @@ class CarRacing(gym.Env, EzPickle):
             random_obstacle_shape=True,
             auto_render=False,
             allow_outside=True,
+            load_tracks_from=None,
             ):
 
         self.allow_outside = allow_outside
@@ -386,6 +395,15 @@ class CarRacing(gym.Env, EzPickle):
         self.random_obstacle_x_position = random_obstacle_x_position
         self.verbose = verbose
         self.animate_zoom = animate_zoom
+
+        if load_tracks_from is not None:
+            if os.path.isdir(load_tracks_from):
+                self.load_tracks_from = load_tracks_from
+                self.tracks_df = pd.read_csv(self.load_tracks_from + "/list.csv")
+            else:
+                raise Exception("Folder specified in load_tracks_from does not exists")
+        else:
+            self.load_tracks_from = None
 
         # Setting key press callback functions
         self.key_press_fn = key_press_fn
@@ -792,7 +810,6 @@ class CarRacing(gym.Env, EzPickle):
         #self.road_poly = [ (    # uncomment this to see checkpoints
         #    [ (tx,ty) for a,tx,ty in checkpoints ],
         #    (0.7,0.7,0.9) ) ]
-        self.road = []
 
         # Go from one checkpoint to another to create track
         x, y, beta = 1.5*track_rad, 0, 0
@@ -1234,44 +1251,64 @@ class CarRacing(gym.Env, EzPickle):
         if len(self.tracks[1]) < 5:
             self.tracks[1] = np.delete(self.tracks[1], range(len(self.tracks[1])),axis=1)
         
+    def _generate_track(self):
+        if self.load_tracks_from is not None:
+            idx = np.random.choice(self.tracks_df.index)
+            try:
+                dic = pickle.load(open(self.load_tracks_from + '/' + str(idx) + ".pkl",'rb'))
+            except Exception as e:
+                print("######## Error ########")
+                print("error loading the track", str(idx))
+                print(e)
+                return False
+            else:
+                self.track  = dic['track']
+                self.tracks = dic['tracks']
+                self.info   = dic['info']
+                self.obstacle_contacts = np.zeros((len(self.obstacles_poly)),dtype=
+                        [('count',int),('count_delay',int),('visited',bool)])
+                return True
+        else:
+            tracks = []
+            cp = 12
+            for _ in range(self.num_tracks):
+                # The following variables allow for more complex tracks but, it is also 
+                # harder to controll their properties and correct behaviour
+                track = self._get_track(int(cp*(1**_)))#,x_bias=-40*_,y_bias=40*_)
+                if not track or len(track) == 0: return track
+                track = np.array(track)
+                if _ > 0 and False:
+                    # adding rotation to decrease number of overlaps
+                    theta = np.random.uniform()*2*np.pi
+                    R = np.array([[np.cos(theta),-np.sin(theta)],[np.sin(theta),np.cos(theta)]])
+                    track[:,0,2:] = (R@track[:,0,2:].T).T
+                    track[:,1,2:] = (R@track[:,1,2:].T).T
+                    track[:,:2] += theta
+                tracks.append(track)
+
+            self.tracks = tracks
+            if self._remove_roads() == False: return False
+            self._remove_unfinished_roads()
+
+            if self.tracks[1].size == 0: return False
+            if self.tracks[0].size == 0: return False
+            
+            try:
+                self.track = np.concatenate(self.tracks)
+            except Exception as e:
+                print(e)
+                print(self.tracks[0].shape)
+                print(self.tracks[0].size)
+                print(self.tracks[1].shape)
+                print(self.tracks[1].size)
+                return False
+
+            self._create_info()
+            self._set_lanes()
+        
     def _create_track(self):
 
-        tracks = []
-        cp = 12
-        for _ in range(self.num_tracks):
-            # The following variables allow for more complex tracks but, it is also 
-            # harder to controll their properties and correct behaviour
-            track = self._get_track(int(cp*(1**_)))#,x_bias=-40*_,y_bias=40*_)
-            if not track or len(track) == 0: return track
-            track = np.array(track)
-            if _ > 0 and False:
-                # adding rotation to decrease number of overlaps
-                theta = np.random.uniform()*2*np.pi
-                R = np.array([[np.cos(theta),-np.sin(theta)],[np.sin(theta),np.cos(theta)]])
-                track[:,0,2:] = (R@track[:,0,2:].T).T
-                track[:,1,2:] = (R@track[:,1,2:].T).T
-                track[:,:2] += theta
-            tracks.append(track)
-
-        self.tracks = tracks
-        if self._remove_roads() == False: return False
-        self._remove_unfinished_roads()
-
-        if self.tracks[1].size == 0: return False
-        if self.tracks[0].size == 0: return False
-        
-        try:
-            self.track = np.concatenate(self.tracks)
-        except Exception as e:
-            print(e)
-            print(self.tracks[0].shape)
-            print(self.tracks[0].size)
-            print(self.tracks[1].shape)
-            print(self.tracks[1].size)
-            return False
-
-        self._create_info()
-        self._set_lanes()
+        self._generate_track()
     
         # Red-white border on hard turns
         borders = []
@@ -1476,6 +1513,8 @@ class CarRacing(gym.Env, EzPickle):
         self.obstacles_poly = []
         self.track = []
         self.tracks = []
+        self.info = []
+        self.road = []
         self.track_lanes = None
         self.human_render = False
         self.state = np.zeros(self.observation_space.shape)
