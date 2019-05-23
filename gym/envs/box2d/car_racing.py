@@ -1298,13 +1298,6 @@ class CarRacing(gym.Env, EzPickle):
                 return False
             
             self.track = np.concatenate(self.tracks)
-            #except Exception as e:
-                #print(e)
-                #print(self.tracks[0].shape)
-                #print(self.tracks[0].size)
-                #print(self.tracks[1].shape)
-                #print(self.tracks[1].size)
-                #return False
 
             self._create_info()
             self._set_lanes()
