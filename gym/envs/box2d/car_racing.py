@@ -1,3 +1,5 @@
+import objgraph
+import gc
 import pickle
 import os
 import sys, math
@@ -1267,6 +1269,14 @@ class CarRacing(gym.Env, EzPickle):
                 self.info   = dic['info']
                 self.obstacle_contacts = np.zeros((len(self.obstacles_poly)),dtype=
                         [('count',int),('count_delay',int),('visited',bool)])
+
+                self.info[[
+                    'count_left',
+                    'count_right',
+                    'count_right_delay',
+                    'count_left_delay']] = 0
+                self.info['visited'] = False
+
                 return True
         else:
             tracks = []
