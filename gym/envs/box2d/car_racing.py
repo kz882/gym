@@ -359,6 +359,9 @@ class CarRacing(gym.Env, EzPickle):
         self.possible_soft_actions = ("NOTHING", "SOFT_LEFT", "HARD_LEFT", 
                 "SOFT_RIGHT", "HARD_RIGHT", "SOFT_ACCELERATE", "HARD_ACCELERATE", 
                 "SOFT_BREAK", "HARD_BREAK") # Not implemented
+        self.fd_tile = fixtureDef(
+                shape = polygonShape(vertices=
+                    [(0, 0),(1, 0),(1, -1),(0, -1)]))
 
         # Config
         self._set_config(**kwargs)
@@ -1472,9 +1475,8 @@ class CarRacing(gym.Env, EzPickle):
                         # TODO CHECK IF THIS AVOID THE ERROR OF ASSERTION COUNT >= 3
                         # TODO remove this try and find a way of really catching the errer
                         #try:
-                        t = self.world.CreateStaticBody( fixtures = fixtureDef(
-                            shape=polygonShape(vertices=vertices)
-                            ))
+                        self.fd_tile.shape.vertices = vertices
+                        t = self.world.CreateStaticBody(fixtures=self.fd_tile)
                         #except AssertionError as e:
                             #print(str(e))
                             #print(vertices)
