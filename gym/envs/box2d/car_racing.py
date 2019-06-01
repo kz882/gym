@@ -612,7 +612,6 @@ class CarRacing(gym.Env, EzPickle):
 
             self._next_nodes.append(next_nodes)
 
-
     def _remove_prediction(self, id, lane, direction):
         ###### Removing current new tile from nexts
         if len(self._next_nodes) > 0:
@@ -628,7 +627,6 @@ class CarRacing(gym.Env, EzPickle):
                 # If tile is not the next prediction means that the
                 # car is somewhere else and we need to predict all 10 again
                 self._next_nodes = []
-
 
     def remove_current_tile(self,id,lane):
         if id in self._current_nodes:
@@ -1941,11 +1939,11 @@ class CarRacing(gym.Env, EzPickle):
             gl.glVertex3f(-2,+PLAYFIELD, 0)
             gl.glVertex3f(-2,-PLAYFIELD, 0)
 
-        self.render_debug_clues()
         self._update_predictions()
         self._render_tiles()
         self._render_obstacles()
         self._render_road_lines()
+        self.render_debug_clues()
 
         gl.glEnd()
 
@@ -2089,8 +2087,11 @@ class CarRacing(gym.Env, EzPickle):
         from_val, to_val = self._get_extremes_of_position(idx,border)
         h = np.random.uniform(0,1)
         if discrete:
-            h = 1 if h > 0.5 else 0
-            h = from_val*h + (1-h)*(to_val-TRACK_WIDTH)
+            h = 1 if h >= 0.5 else 0
+            # it is 1-border in becase -TRACK_WIDTH when border=True
+            # makes h always equal to -3.3333 because it is taking
+            # into account the border twice 
+            h = from_val*h + (1-h)*(to_val-TRACK_WIDTH*(1-border))
         else:
             h = from_val*h + (1-h)*to_val
         x += h*math.cos(beta)
