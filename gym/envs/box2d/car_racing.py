@@ -2080,22 +2080,29 @@ class CarRacing(gym.Env, EzPickle):
         discrete=True means the random position is either 0 or 1, i.e. in the
         beginning or the end of the position in the x-relative coordinate
         '''
+        h = np.random.uniform(0,1)
+        h = 1 if h >= 0.5 else 0
+        return self._get_position_inside_lane(
+                idx,h,border=border,direction=direction,discrete=discrete)
+
+    def _get_position_inside_lane(self,idx,x_pos,border=True,direction=1,discrete=False):
+        '''
+        x_pos in [0,1] meaning the position in the x axis relative to the direction
+        '''
         alpha, beta, x, y = self.track[idx,1,:]
         if direction == -1:
             alpha+=np.pi
             beta+=np.pi
         from_val, to_val = self._get_extremes_of_position(idx,border)
-        h = np.random.uniform(0,1)
         if discrete:
-            h = 1 if h >= 0.5 else 0
             # it is 1-border in becase -TRACK_WIDTH when border=True
             # makes h always equal to -3.3333 because it is taking
             # into account the border twice 
-            h = from_val*h + (1-h)*(to_val-TRACK_WIDTH*(1-border))
+            x_pos = from_val*x_pos + (1-x_pos)*(to_val-TRACK_WIDTH*(1-border))
         else:
-            h = from_val*h + (1-h)*to_val
-        x += h*math.cos(beta)
-        y += h*math.sin(beta)
+            x_pos = from_val*x_pos + (1-x_pos)*to_val
+        x += x_pos*math.cos(beta)
+        y += x_pos*math.sin(beta)
         return [alpha,beta,x,y]
 
     def _get_extremes_of_position(self,idx,border):
