@@ -70,6 +70,7 @@ NUM_TILES_FOR_AVG = 5 # The number of tiles before and after to takeinto account
 TILES_IN_SCREEN = 20  # The number of tiles that fit in a screen (arange as track)
 HARD_NEG_REWARD = 100 # For actions like going out or timeout
 SOFT_NEG_REWARD = 0.1 # For actions like living
+MIN_SEGMENT_LENGHT = 5
 
 ROAD_COLOR = [0.4, 0.4, 0.4]
 
@@ -506,7 +507,6 @@ class CarRacing(gym.Env, EzPickle):
             reward -= HARD_NEG_REWARD
         return reward,done
         
-
     def update_contact_with_track(self):
         self.last_touch_with_track = self.t
 
@@ -730,60 +730,82 @@ class CarRacing(gym.Env, EzPickle):
         intersection = {'left':None,'right':None,'straight':None}
         relative_id = self._to_relative(node_id)
         track_id = self.info[node_id]['track']
-        _,angle,x,y = self.track[node_id][1]
+        _,angle_org,x,y = self.track[node_id][1]
         
-        angle = (angle + direction*np.pi/2)%(np.pi*2)
+        angle = (angle_org + direction*np.pi/2)%(np.pi*2)
         
         # Populating straight node
         if self.info[node_id]['t'] and self.info[node_id]['track'] > 0:
             intersection['straight'] = None
         else:
-            # TODO sometimes where the tracks only touch the straight route is in the other track
+            # Sometimes where the tracks only touch the straight route is in the other track
+            # The solution was to not generate touching tracks
             s_node = (relative_id + direction) % len(self.tracks[self.info[node_id]['track']])
             s_node = node_id - relative_id + s_node
-            intersection['straight'] = s_node
+            intersection['straight'] = [s_node,direction]
 
-        # Populating left and right node
+        # starting to populate left and right node
         nodes = np.where(
             (self.info['intersection_id'] == self.info[node_id]['intersection_id']) & \
             (self.info['track'] != track_id))[0]
         
         candidates = []
+        # some times the first node of the right turn starts 
+        # slightly to the left (opposite side) of intersection)
+        # that's why there is a secure_candidates
+        secure_candidates = [] 
         for node in nodes:
             if self.info[node]['track'] == 0:
                 candidates.append((node+1)%len(self.tracks[0]))
+                secure_candidates.append((node+(MIN_SEGMENT_LENGHT-1))%len(self.tracks[0]))
                 candidates.append((node-1)%len(self.tracks[0]))
+                secure_candidates.append((node-(MIN_SEGMENT_LENGHT-1))%len(self.tracks[0]))
             else:
+                # The not start or not end is in case the node has not broken into two nodes
+                # and it is still a continuous road
                 if self.info[node]['end'] or not self.info[node]['start']:
                     relative_candidate = self._to_relative(node)
+                    next_relative_candidate_safe = (relative_candidate - (MIN_SEGMENT_LENGHT-1))\
+                            %len(self.tracks[self.info[node]['track']])
                     next_relative_candidate = (relative_candidate -1)\
                             %len(self.tracks[self.info[node]['track']])
                     candidates.append(node-relative_candidate+next_relative_candidate)
-                elif self.info[node]['start'] or not self.info[node]['end']:
+                    secure_candidates.append(node-relative_candidate+next_relative_candidate_safe)
+                if self.info[node]['start'] or not self.info[node]['end']:
                     relative_candidate = self._to_relative(node)
+                    next_relative_candidate_safe = (relative_candidate + (MIN_SEGMENT_LENGHT-1))\
+                            %len(self.tracks[self.info[node]['track']])
                     next_relative_candidate = (relative_candidate +1)\
                             %len(self.tracks[self.info[node]['track']])
                     candidates.append(node-relative_candidate+next_relative_candidate)
+                    secure_candidates.append(node-relative_candidate+next_relative_candidate_safe)
 
         angles = []
-        for tmp_id in candidates:
-            x1,y1 = self.track[tmp_id][0,2:]
+        for tmp_id_true,tmp_id in zip(candidates,secure_candidates):
+            beta_tmp,x1,y1 = self.track[tmp_id][0,1:]
             tmp_angle = math.atan2(y1-y,x1-x)
             tmp_angle -= angle
             tmp_angle %= (np.pi*2)
             tmp_angle -= np.pi
             angles.append(tmp_angle)
-            if tmp_angle > 0:
-                intersection['left'] = tmp_id
-                if self.info[tmp_id]['intersection_id'] == -1:
-                    intersection['right'] = tmp_id
+
+            tmp_angle_org = angle_org
+            if direction < 0:
+                tmp_angle_org = (angle_org + np.pi) % (np.pi*2)
+            tmp_dir = -1 if (beta_tmp - tmp_angle_org) % (np.pi*2) > np.pi else 1
+            if tmp_angle < 0:
+                intersection['left'] = [tmp_id_true,tmp_dir]
+                #if self.info[tmp_id]['intersection_id'] == -1:
+                #    intersection['right'] = tmp_id
             else:
-                intersection['right'] = tmp_id
-                if self.info[tmp_id]['intersection_id'] == -1:
-                    intersection['left'] = tmp_id
+                tmp_dir *= -1
+                intersection['right'] = [tmp_id_true,tmp_dir]
+                #if self.info[tmp_id]['intersection_id'] == -1:
+                #    intersection['left'] = tmp_id
 
         angles = np.array(angles)
         if (angles > 0).sum() >= 2 or (angles < 0).sum() >= 2:
+            raise NotImplementedError
             intersection['left'] = candidates[angles.argmax()]
             intersection['right'] = candidates[angles.argmin()]
 
@@ -1843,8 +1865,8 @@ class CarRacing(gym.Env, EzPickle):
                         # if the middle tiles of segment are too close to main track
                         elif len(min_distances) > 25 and (min_distances[10:-10].min() < TRACK_WIDTH*3): 
                             remove = True
-                        # if the segment is smaller than 15
-                        elif len(min_distances) < 5: 
+                        # if the segment is smaller than MIN_SEGMENT_LENGHT
+                        elif len(min_distances) < MIN_SEGMENT_LENGHT: 
                             remove = True
                         # if there are more than 50 tiles very close to main track
                         elif len(min_distances) > 50 and (min_distances < TRACK_WIDTH*2).sum() > 50: 
