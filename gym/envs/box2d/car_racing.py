@@ -757,15 +757,15 @@ class CarRacing(gym.Env, EzPickle):
         for node in nodes:
             if self.info[node]['track'] == 0:
                 candidates.append((node+1)%len(self.tracks[0]))
-                secure_candidates.append((node+(MIN_SEGMENT_LENGHT-1))%len(self.tracks[0]))
+                secure_candidates.append((node+int(MIN_SEGMENT_LENGHT/2))%len(self.tracks[0]))
                 candidates.append((node-1)%len(self.tracks[0]))
-                secure_candidates.append((node-(MIN_SEGMENT_LENGHT-1))%len(self.tracks[0]))
+                secure_candidates.append((node-int(MIN_SEGMENT_LENGHT/2))%len(self.tracks[0]))
             else:
                 # The not start or not end is in case the node has not broken into two nodes
                 # and it is still a continuous road
                 if self.info[node]['end'] or not self.info[node]['start']:
                     relative_candidate = self._to_relative(node)
-                    next_relative_candidate_safe = (relative_candidate - (MIN_SEGMENT_LENGHT-1))\
+                    next_relative_candidate_safe = (relative_candidate - int(MIN_SEGMENT_LENGHT/2))\
                             %len(self.tracks[self.info[node]['track']])
                     next_relative_candidate = (relative_candidate -1)\
                             %len(self.tracks[self.info[node]['track']])
@@ -773,7 +773,7 @@ class CarRacing(gym.Env, EzPickle):
                     secure_candidates.append(node-relative_candidate+next_relative_candidate_safe)
                 if self.info[node]['start'] or not self.info[node]['end']:
                     relative_candidate = self._to_relative(node)
-                    next_relative_candidate_safe = (relative_candidate + (MIN_SEGMENT_LENGHT-1))\
+                    next_relative_candidate_safe = (relative_candidate + int(MIN_SEGMENT_LENGHT/2))\
                             %len(self.tracks[self.info[node]['track']])
                     next_relative_candidate = (relative_candidate +1)\
                             %len(self.tracks[self.info[node]['track']])
@@ -782,6 +782,7 @@ class CarRacing(gym.Env, EzPickle):
 
         angles = []
         left_dirs = []
+        tmp_angles = []
         for tmp_id_true,tmp_id in zip(candidates,secure_candidates):
             beta_tmp,x1,y1 = self.track[tmp_id][0,1:]
             tmp_angle = math.atan2(y1-y,x1-x)
@@ -795,6 +796,7 @@ class CarRacing(gym.Env, EzPickle):
                 tmp_angle_org = (angle_org + np.pi) % (np.pi*2)
             tmp_dir = -1 if (beta_tmp - tmp_angle_org) % (np.pi*2) > np.pi else 1
             left_dirs.append(tmp_dir)
+            tmp_angles.append(tmp_angle)
             if tmp_angle < 0:
                 intersection['left'] = [tmp_id_true,tmp_dir]
                 #if self.info[tmp_id]['intersection_id'] == -1:
@@ -806,9 +808,14 @@ class CarRacing(gym.Env, EzPickle):
                 #    intersection['left'] = tmp_id
 
         angles = np.array(angles)
-        if (angles > 0).sum() >= 2 or (angles < 0).sum() >= 2:
-            left  = angles.argmin()
-            right = angles.argmax()
+        if (angles > 0).sum() >= 2 or (angles < 0).sum() >= 2 \
+                or (-1 in left_dirs and 1 in left_dirs):
+            # TODO consider not using arg min for the direction, use the direction
+            # of the angle that most looks like left or right
+            set_trace()
+            angles -= angles.mean()
+            left  = angles.argmax()
+            right = angles.argmin()
             intersection['left']  = [candidates[left],    left_dirs[left]]
             intersection['right'] = [candidates[right],-1*left_dirs[left]]
 
@@ -1915,9 +1922,9 @@ class CarRacing(gym.Env, EzPickle):
         '''
         # drawing road old way
         for poly, color, id, lane in self.road_poly:
-            if SHOW_NEXT_N_TILES > 0 and id in self._trail_nodes and lane in self._trail_nodes[id]:
-            #if (hasattr(self,'_objective') and self._objective == id) or id in self._current_nodes.keys() \
-            #or (hasattr(self,'_neg_objectives') and id in self._neg_objectives):
+            #if SHOW_NEXT_N_TILES > 0 and id in self._trail_nodes and lane in self._trail_nodes[id]:
+            if (hasattr(self,'_objective') and self._objective == id) or id in self._current_nodes.keys() \
+            or (hasattr(self,'_neg_objectives') and id in self._neg_objectives):
             #if id in self.predictions_id:
                 color = [c/2 for c in color]
 
