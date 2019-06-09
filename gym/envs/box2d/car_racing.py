@@ -70,7 +70,7 @@ NUM_TILES_FOR_AVG = 5 # The number of tiles before and after to takeinto account
 TILES_IN_SCREEN = 20  # The number of tiles that fit in a screen (arange as track)
 HARD_NEG_REWARD = 100 # For actions like going out or timeout
 SOFT_NEG_REWARD = 0.1 # For actions like living
-MIN_SEGMENT_LENGHT = 5
+MIN_SEGMENT_LENGHT = 8
 
 ROAD_COLOR = [0.4, 0.4, 0.4]
 
@@ -781,6 +781,7 @@ class CarRacing(gym.Env, EzPickle):
                     secure_candidates.append(node-relative_candidate+next_relative_candidate_safe)
 
         angles = []
+        left_dirs = []
         for tmp_id_true,tmp_id in zip(candidates,secure_candidates):
             beta_tmp,x1,y1 = self.track[tmp_id][0,1:]
             tmp_angle = math.atan2(y1-y,x1-x)
@@ -793,6 +794,7 @@ class CarRacing(gym.Env, EzPickle):
             if direction < 0:
                 tmp_angle_org = (angle_org + np.pi) % (np.pi*2)
             tmp_dir = -1 if (beta_tmp - tmp_angle_org) % (np.pi*2) > np.pi else 1
+            left_dirs.append(tmp_dir)
             if tmp_angle < 0:
                 intersection['left'] = [tmp_id_true,tmp_dir]
                 #if self.info[tmp_id]['intersection_id'] == -1:
@@ -805,9 +807,10 @@ class CarRacing(gym.Env, EzPickle):
 
         angles = np.array(angles)
         if (angles > 0).sum() >= 2 or (angles < 0).sum() >= 2:
-            raise NotImplementedError
-            intersection['left'] = candidates[angles.argmax()]
-            intersection['right'] = candidates[angles.argmin()]
+            left  = angles.argmin()
+            right = angles.argmax()
+            intersection['left']  = [candidates[left],    left_dirs[left]]
+            intersection['right'] = [candidates[right],-1*left_dirs[left]]
 
         return intersection
 
@@ -1913,6 +1916,8 @@ class CarRacing(gym.Env, EzPickle):
         # drawing road old way
         for poly, color, id, lane in self.road_poly:
             if SHOW_NEXT_N_TILES > 0 and id in self._trail_nodes and lane in self._trail_nodes[id]:
+            #if (hasattr(self,'_objective') and self._objective == id) or id in self._current_nodes.keys() \
+            #or (hasattr(self,'_neg_objectives') and id in self._neg_objectives):
             #if id in self.predictions_id:
                 color = [c/2 for c in color]
 
