@@ -334,6 +334,8 @@ class CarRacing(gym.Env, EzPickle):
                                      and tracks from the env. There also has to be a file called
                                      list.csv containing the ids with bool columns x,t,obstacles
 
+    allow_outside       (bool True)  Whether or not to allow the car going outside or not
+
     '''
     metadata = {
         'render.modes': ['human', 'rgb_array', 'state_pixels'],
@@ -1921,9 +1923,9 @@ class CarRacing(gym.Env, EzPickle):
         '''
         # drawing road old way
         for poly, color, id, lane in self.road_poly:
-            #if SHOW_NEXT_N_TILES > 0 and id in self._trail_nodes and lane in self._trail_nodes[id]:
-            if (hasattr(self,'_objective') and self._objective == id) or id in self._current_nodes.keys() \
-            or (hasattr(self,'_neg_objectives') and id in self._neg_objectives):
+            if SHOW_NEXT_N_TILES > 0 and id in self._trail_nodes and lane in self._trail_nodes[id]:
+            #if (hasattr(self,'_objective') and self._objective == id) or id in self._current_nodes.keys() \
+            #or (hasattr(self,'_neg_objectives') and id in self._neg_objectives):
             #if id in self.predictions_id:
                 color = [c/2 for c in color]
 
