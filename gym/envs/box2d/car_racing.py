@@ -812,7 +812,6 @@ class CarRacing(gym.Env, EzPickle):
                 or (-1 in left_dirs and 1 in left_dirs):
             # TODO consider not using arg min for the direction, use the direction
             # of the angle that most looks like left or right
-            set_trace()
             angles -= angles.mean()
             left  = angles.argmax()
             right = angles.argmin()
