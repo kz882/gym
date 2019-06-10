@@ -2289,8 +2289,10 @@ def play(env):
     record_video = False
     if record_video:
         env.monitor.start('/tmp/video-test', force=True)
-    env.viewer.window.on_key_press = key_press
-    env.viewer.window.on_key_release = key_release
+    #env.viewer.window.on_key_press = key_press
+    #env.viewer.window.on_key_release = key_release
+    env.key_press_fn = key_press
+    env.key_press_fn = key_release
     while True:
         env.reset()
         total_reward = 0.0
