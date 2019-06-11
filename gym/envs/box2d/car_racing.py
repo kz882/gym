@@ -413,7 +413,7 @@ class CarRacing(gym.Env, EzPickle):
 
         # Setting key press callback functions
         self.key_press_fn = key_press_fn
-        self.key_release_fn = key_press_fn 
+        self.key_release_fn = key_release_fn 
         
         # Number of lanes, 1 or 2
         self.num_lanes = num_lanes  if num_lanes in [1,2] else 1
@@ -1284,10 +1284,14 @@ class CarRacing(gym.Env, EzPickle):
 
         if len(self.tracks[1]) < 5:
             self.tracks[1] = np.delete(self.tracks[1], range(len(self.tracks[1])),axis=1)
+
+    def _choice_random_track_from_file(self):
+        idx = np.random.choice(self.tracks_df.index)
+        return idx
         
     def _generate_track(self):
         if self.load_tracks_from is not None:
-            idx = np.random.choice(self.tracks_df.index)
+            idx = self._choice_random_track_from_file() 
             try:
                 dic = pickle.load(open(self.load_tracks_from + '/' + str(idx) + ".pkl",'rb'))
             except Exception as e:
