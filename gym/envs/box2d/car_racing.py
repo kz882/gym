@@ -1746,7 +1746,7 @@ class CarRacing(gym.Env, EzPickle):
 
     def _key_press(self,k,mod):
         from pyglet.window import key
-        if k == key.S:# S from Show
+        if k == key.S: # S from Show
             self.auto_render = not self.auto_render
         if k == key.T: # T from Take screnshot
             self.screenshot()
@@ -2241,6 +2241,7 @@ class CarRacing(gym.Env, EzPickle):
             #if self.key_release_fn is not None:
                 #self.viewer.window.on_key_release = self.key_release_fn
 
+ 
 def play(env):
     """
     run this function in order to create a window and be able to play
@@ -2296,7 +2297,7 @@ def play(env):
     #env.viewer.window.on_key_press = key_press
     #env.viewer.window.on_key_release = key_release
     env.key_press_fn = key_press
-    env.key_press_fn = key_release
+    env.key_release_fn = key_release
     while True:
         env.reset()
         total_reward = 0.0
