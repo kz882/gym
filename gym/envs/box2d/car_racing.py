@@ -1576,7 +1576,8 @@ class CarRacing(gym.Env, EzPickle):
         self.car = Car(self.world, *car_position, allow_reverse=self.action_space)
         self.place_agent(self.get_rnd_point_in_track())
         
-        for _ in range(self.frames_per_state+20):
+        # there are 20 frames of noise at the begining 
+        for _ in range(self.frames_per_state+20): 
             obs = self.step(None)[0]
 
         return obs
@@ -1772,12 +1773,12 @@ class CarRacing(gym.Env, EzPickle):
         if state is not None:
             for f in range(self.frames_per_state):
 
-                if self.frames_per_state == 1:
-                    frame_str = ""
-                    frame = state
-                else:
-                    frame_str = "_frame%i" % f
-                    frame = state[:,:,f]
+                #if self.frames_per_state == 1:
+                frame_str = ""
+                frame = state
+                #else:
+                    #frame_str = "_frame%i" % f
+                    #frame = state[:,:,f]
 
                 if self.grayscale:
                     frame = np.stack([frame,frame,frame], axis=-1)
@@ -2163,7 +2164,11 @@ class CarRacing(gym.Env, EzPickle):
                               negative as well
         '''
         if type_junction == 'xt':
-            filter = (self.info['x'] == True) | (self.info['t'] == True)
+            if self.info['x'].sum() > 0:
+                # To give priority to the rarely found x intersections
+                filter = self.info['x']
+            else:
+                filter = (self.info['x'] == True) | (self.info['t'] == True)
         else:
             filter = self.info[type_junction] == True
         if filter.sum() > 0:
