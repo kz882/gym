@@ -405,7 +405,7 @@ class CarRacing(gym.Env, EzPickle):
         if load_tracks_from is not None:
             if os.path.isdir(load_tracks_from):
                 self.load_tracks_from = load_tracks_from
-                self.tracks_df = pd.read_csv(self.load_tracks_from + "/list.csv")
+                self.tracks_df = pd.read_csv(self.load_tracks_from + "/list.csv",index_col=0)
             else:
                 raise Exception("Folder specified in load_tracks_from does not exists")
         else:
@@ -1350,6 +1350,9 @@ class CarRacing(gym.Env, EzPickle):
                 self.track = np.array(self.tracks[0])
 
             self._create_info()
+            # Avoid lonely tiles at the begining of track
+            if self.info[0]['intersection_id'] != -1: return False
+
             self._set_lanes()
         
     def _create_track(self):
