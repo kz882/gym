@@ -142,9 +142,7 @@ def default_reward_callback(env):
     env.tile_visited_count += (left | right).sum()
 
     # Negative reward
-    obs_not_visited = env.obstacle_contacts['visited'] == False
-    obs_count = (env.obstacle_contacts[obs_not_visited]['count_delay'] > 0).sum()
-    reward += OBSTACLE_VALUE*obs_count
+    reward += env.check_obstacles_touched()
 
     full_reward = reward
     reward = np.clip(reward, 
@@ -509,6 +507,11 @@ class CarRacing(gym.Env, EzPickle):
             reward -= HARD_NEG_REWARD
         return reward,done
         
+    def check_obstacles_touched(self,obstacle_value=OBSTACLE_VALUE):
+        obs_not_visited = self.obstacle_contacts['visited'] == False
+        obs_count = (self.obstacle_contacts[obs_not_visited]['count_delay'] > 0).sum()
+        return obstacle_value*obs_count
+
     def update_contact_with_track(self):
         self.last_touch_with_track = self.t
 
