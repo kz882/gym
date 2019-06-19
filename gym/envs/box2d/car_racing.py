@@ -1587,8 +1587,6 @@ class CarRacing(gym.Env, EzPickle):
         return obs
 
     def _position_car_on_reset(self):
-        #car_position = self.track[0][1][1:4]
-        #self.car = Car(self.world, *car_position, allow_reverse=self.action_space)
         self.place_agent(self.get_rnd_point_in_track())
 
     def _update_state(self,new_frame):
