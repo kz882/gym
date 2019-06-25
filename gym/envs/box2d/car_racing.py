@@ -1028,9 +1028,11 @@ class CarRacing(gym.Env, EzPickle):
             t.typename = OBSTACLE_NAME
             t.road_visited = False
             t.id = count
+            t.tile_id = idx
             t.fixtures[0].sensor = True
             self.obstacles_poly.append(( vertices, t.color ))
             self.road.append(t)
+            self.info[idx]['obstacles'] = True
 
     def _create_info(self):
         '''
@@ -1056,10 +1058,12 @@ class CarRacing(gym.Env, EzPickle):
             ('count_left_delay', 'int'),
             ('count_right_delay', 'int'),
             ('visited',bool),
-            ('obstacles',np.ndarray)])
+            #('obstacles',np.ndarray)])
+            ('obstacles',bool)])
 
         info['ang_class'] = np.nan
         info['intersection_id'] = -1
+        info['obstacles'] = False
 
         for i in range(len(info)):
             info[i]['lanes'] = [True, True]
@@ -1587,6 +1591,12 @@ class CarRacing(gym.Env, EzPickle):
         return obs
 
     def _position_car_on_reset(self):
+        """
+        This function takes care of placing the car in a position
+        at every reset call. This function should be modify to have
+        the desired behaviour of where the car appears, do not
+        re-spawn the car after the reset function has been called
+        """
         self.place_agent(self.get_rnd_point_in_track())
 
     def _update_state(self,new_frame):
@@ -2179,15 +2189,31 @@ class CarRacing(gym.Env, EzPickle):
         else:
             filter = self.info[type_junction] == True
         if filter.sum() > 0:
-            idx = np.random.choice(np.where(filter)[0])
-            idx_relative = idx - (self.info['track'] < self.info[idx]['track']).sum()
-            track = self.track[self.info['track'] == self.info[idx]['track']]
-            idx_general = (idx_relative + tiles_before)%len(track) + (self.info['track'] < self.info[idx]['track']).sum()
-            _, beta, x, y = self._get_rnd_position_inside_lane(idx_general)
-            if tiles_before > 0: beta += math.pi
+            beta,x,y,_ = _get_tile_near_tile_in_filter(filter,tiles_before)
             return [beta,x,y]
         else:
             return False
+
+    def _get_tile_near_tile_in_filter(self,filter,tiles_before=8):
+        """
+        this helper function receives a filter and a number of tiles, and will return
+        a position tiles_before tiles before a position in the filter
+        Have in mind that tiles_before can be negative
+        """
+        idx = np.random.choice(np.where(filter)[0])
+        idx_relative = idx - (self.info['track'] < self.info[idx]['track']).sum()
+        track = self.track[self.info['track'] == self.info[idx]['track']]
+        idx_general = (idx_relative + tiles_before)%len(track) + (self.info['track'] < self.info[idx]['track']).sum()
+        _, beta, x, y = self._get_rnd_position_inside_lane(idx_general)
+        if tiles_before > 0: beta += math.pi
+        return  beta,x,y,idx_general
+
+    def get_position_near_obstacle(self,tiles_before=8):
+        if self.num_obstacles > 0:
+            filter = self.info['obstacles'] == True
+            beta,x,y,idx = self._get_tile_near_tile_in_filter(filter,tiles_before=tiles_before)
+            return beta,x,y,idx
+        return False
 
     def get_position_outside(self, distance):
         '''
