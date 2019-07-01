@@ -2189,7 +2189,7 @@ class CarRacing(gym.Env, EzPickle):
         else:
             filter = self.info[type_junction] == True
         if filter.sum() > 0:
-            beta,x,y,_ = _get_tile_near_tile_in_filter(filter,tiles_before)
+            beta,x,y,_ = self._get_tile_near_tile_in_filter(filter,tiles_before)
             return [beta,x,y]
         else:
             return False
