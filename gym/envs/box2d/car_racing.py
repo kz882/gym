@@ -1578,11 +1578,14 @@ class CarRacing(gym.Env, EzPickle):
 
         while True:
             success = self._create_track()
-            if success: break
+
+            if success:
+                if self._position_car_on_reset() is not False:
+                    break
+
+
             if self.verbose > 0:
                 print("retry to generate track (normal if there are not many of this messages)")
-
-        self._position_car_on_reset()
         
         # there are 20 frames of noise at the begining 
         for _ in range(self.frames_per_state+20): 
