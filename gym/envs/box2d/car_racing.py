@@ -1769,23 +1769,23 @@ class CarRacing(gym.Env, EzPickle):
     def screenshot(self, dest="./", name=None,quality='low'):
         ''' 
         Saves the current state, quality 'low','medium' or 'high', low will save the 
-        current state
+        current state if the quality is low, otherwise will save the current frame
         '''
         if quality == 'low':
             state = self.state
-        if quality == 'medium':
+        elif quality == 'medium':
             state = self.render('rgb_array')
         else:
             state = self.render("HD")
         if state is not None:
             for f in range(self.frames_per_state):
 
-                #if self.frames_per_state == 1:
-                frame_str = ""
-                frame = state
-                #else:
-                    #frame_str = "_frame%i" % f
-                    #frame = state[:,:,f]
+                if self.frames_per_state == 1 or quality is not 'low':
+                    frame_str = ""
+                    frame = state
+                else:
+                    frame_str = "_frame%i" % f
+                    frame = state[:,:,f]
 
                 if self.grayscale:
                     frame = np.stack([frame,frame,frame], axis=-1)
