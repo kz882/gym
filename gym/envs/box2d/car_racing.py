@@ -157,7 +157,8 @@ def default_reward_callback(env):
     zero_count = env.obstacle_contacts['count'] == 0
     in_contact = env.obstacle_contacts['count'] > 0
     env.obstacle_contacts['visited'][in_contact] = True
-    env.obstacle_contacts['visited'][(different_count) & (zero_count)] = False
+    # Next line forgets the obstacles touched but not currently being touch
+    env.obstacle_contacts['visited'][(different_count) & (zero_count)] = False 
     env.obstacle_contacts['count_delay'] = env.obstacle_contacts['count']
 
     done = False
