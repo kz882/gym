@@ -510,7 +510,10 @@ class CarRacing(gym.Env, EzPickle):
     def check_obstacles_touched(self,obstacle_value=OBSTACLE_VALUE):
         obs_not_visited = self.obstacle_contacts['visited'] == False
         obs_count = (self.obstacle_contacts[obs_not_visited]['count_delay'] > 0).sum()
-        return obstacle_value*obs_count
+        obstacle_rwd = 0
+        if obs_count > 0:
+            obstacle_rwd = obstacle_value
+        return obstacle_rwd
 
     def update_contact_with_track(self):
         self.last_touch_with_track = self.t
