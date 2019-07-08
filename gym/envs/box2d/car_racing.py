@@ -153,12 +153,7 @@ def default_reward_callback(env):
     env.info['count_right_delay'] = env.info['count_right']
     env.info['count_left_delay']  = env.info['count_left']
 
-    different_count = env.obstacle_contacts['count'] != env.obstacle_contacts['count_delay']
-    zero_count = env.obstacle_contacts['count'] == 0
-    in_contact = env.obstacle_contacts['count'] > 0
-    env.obstacle_contacts['visited'][in_contact] = True
-    env.obstacle_contacts['visited'][(different_count) & (zero_count)] = False
-    env.obstacle_contacts['count_delay'] = env.obstacle_contacts['count']
+    env._update_obstacles_info()
 
     done = False
 
@@ -507,6 +502,14 @@ class CarRacing(gym.Env, EzPickle):
             reward -= HARD_NEG_REWARD
         return reward,done
         
+    def _update_obstacles_info(self):
+        different_count = self.obstacle_contacts['count'] != self.obstacle_contacts['count_delay']
+        zero_count = self.obstacle_contacts['count'] == 0
+        in_contact = self.obstacle_contacts['count'] > 0
+        self.obstacle_contacts['visited'][in_contact] = True
+        self.obstacle_contacts['visited'][(different_count) & (zero_count)] = False
+        self.obstacle_contacts['count_delay'] = self.obstacle_contacts['count']
+
     def check_obstacles_touched(self,obstacle_value=OBSTACLE_VALUE):
         obs_not_visited = self.obstacle_contacts['visited'] == False
         obs_count = (self.obstacle_contacts[obs_not_visited]['count_delay'] > 0).sum()
