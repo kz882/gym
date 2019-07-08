@@ -507,6 +507,7 @@ class CarRacing(gym.Env, EzPickle):
         zero_count = self.obstacle_contacts['count'] == 0
         in_contact = self.obstacle_contacts['count'] > 0
         self.obstacle_contacts['visited'][in_contact] = True
+        # Next line forgets the obstacles touched but not currently being touch
         self.obstacle_contacts['visited'][(different_count) & (zero_count)] = False
         self.obstacle_contacts['count_delay'] = self.obstacle_contacts['count']
 
