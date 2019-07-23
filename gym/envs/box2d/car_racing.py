@@ -360,6 +360,7 @@ class CarRacing(gym.Env, EzPickle):
         # Config
         self._set_config(**kwargs)
         self._org_config = deepcopy(kwargs)
+        self._steps_in_episode = 0
 
     def _set_config(self, 
             num_tracks=1, 
@@ -493,10 +494,16 @@ class CarRacing(gym.Env, EzPickle):
             reward -= HARD_NEG_REWARD
         return reward,done
 
-    def check_outside(self,reward,done):
+    def _is_outside(self):
         right = self.info['count_right'] > 0
         left  = self.info['count_left']  > 0
         if (left|right).sum() == 0:
+            return True
+        else:
+            return False
+
+    def check_outside(self,reward,done):
+        if self._is_outside():
             # In case it is outside the track 
             done = True
             reward -= HARD_NEG_REWARD
@@ -1582,6 +1589,7 @@ class CarRacing(gym.Env, EzPickle):
         self.track_lanes = None
         self.human_render = False
         self.state = np.zeros(self.observation_space.shape)
+        self._steps_in_episode = 0
 
         while True:
             success = self._create_track()
@@ -1634,6 +1642,7 @@ class CarRacing(gym.Env, EzPickle):
         action = self._transform_action(action)
 
         if action is not None:
+            self._steps_in_episode += 1
             self.car.steer(-action[0])
             self.car.gas(action[1])
             self.car.brake(action[2])
