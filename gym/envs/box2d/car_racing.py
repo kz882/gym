@@ -118,6 +118,46 @@ def key_release_example(k, mod):
         # change a value or print something
         pass
 
+def original_reward_callback(env):
+    reward,done = -0.1,False
+
+    left  = env.info['count_left_delay']  > 0
+    right = env.info['count_right_delay'] > 0
+    not_visited = env.info['visited'] == False
+
+    visited_count = env.info['visited'].sum()
+
+    count = ( (left | right) & not_visited).sum()
+    reward += 1000/len(env.track) * count
+
+    env.info['visited'][left | right] = True
+    env.info['count_right_delay'] = env.info['count_right']
+    env.info['count_left_delay']  = env.info['count_left']
+
+    # if outside the map
+    x, y = env.car.hull.position
+    if not done and abs(x) > PLAYFIELD or abs(y) > PLAYFIELD:
+        done = True
+        reward -= HARD_NEG_REWARD
+
+    if env.reward > 1000 or env.reward < -200:
+        # if too good or too bad
+        done = True
+    else:
+        if not env.allow_outside: reward,done = env.check_outside(reward,done)
+        reward,done = env.check_timeout(reward,done)
+
+
+        if visited_count==len(env.track):
+            done = True
+        # if outside the map
+        x, y = env.car.hull.position
+        if not done and abs(x) > PLAYFIELD or abs(y) > PLAYFIELD:
+            done = True
+            reward -= HARD_NEG_REWARD
+
+    return reward, reward, done
+
 def default_reward_callback(env):
     reward = -SOFT_NEG_REWARD
 
