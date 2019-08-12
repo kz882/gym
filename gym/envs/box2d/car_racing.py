@@ -983,12 +983,15 @@ class CarRacing(gym.Env, EzPickle):
         track = [[track[i-1],track[i]] for i in range(len(track))]
         return track
 
+    def _get_possible_candidates_for_obstacles(self):
+        return list(range(len(self.track)))
+
     def _create_obstacles(self):
         # Get random tile, with replacement
         # Create obstacle (red rectangle of random width and position in tile)
         #tiles_idx = np.random.choice(range(len(self.track)), self.num_obstacles, replace=False)
 
-        possible_candidates = list(range(len(self.track)))
+        possible_candidates = self._get_possible_candidates_for_obstacles()
 
         # This loop removes any tile close to an 
         # intersection from posible candidates
