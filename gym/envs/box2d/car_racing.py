@@ -140,7 +140,7 @@ def original_reward_callback(env):
         done = True
         reward -= HARD_NEG_REWARD
 
-    if env.reward > 1000 or env.reward < -200:
+    if env.reward > 1000 or env.reward < -1000:
         # if too good or too bad
         done = True
     else:
