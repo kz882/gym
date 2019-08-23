@@ -234,10 +234,10 @@ class FrictionDetector(contactListener):
             obj  = u1
         if not tile: return
 
-        if tile.typename != OBSTACLE_NAME:
-            tile.color[0] = ROAD_COLOR[0]
-            tile.color[1] = ROAD_COLOR[1]
-            tile.color[2] = ROAD_COLOR[2]
+        #if tile.typename != OBSTACLE_NAME:
+        tile.color[0] = ROAD_COLOR[0]
+        tile.color[1] = ROAD_COLOR[1]
+        tile.color[2] = ROAD_COLOR[2]
         if not obj or "tiles" not in obj.__dict__: return
 
         if begin:
@@ -1079,7 +1079,9 @@ class CarRacing(gym.Env, EzPickle):
                 shape=polygonShape(vertices=vertices)
                 ))
             t.userData = t
-            t.color = [0.86,0.08,0.23] 
+            #t.color = [0.86,0.08,0.23] 
+            c = 0.01*(count%3)
+            t.color = [ROAD_COLOR[0] + c, ROAD_COLOR[1] + c, ROAD_COLOR[2] + c]
             t.road_friction = 1.0
             t.road_visited  = True
             t.typename = OBSTACLE_NAME
@@ -1582,12 +1584,13 @@ class CarRacing(gym.Env, EzPickle):
                             #print(vertices)
                             #return False
                         t.userData = t
-                        i = 0
-                        c = 0.01*(i%3)
+                        #i = 0
+                        c = 0.01*(j%3)
                         if joint and SHOW_JOINTS:
                             t.color = [1,1,1]
                         else:
-                            t.color = [ROAD_COLOR[0], ROAD_COLOR[1], ROAD_COLOR[2]] 
+                            #t.color = [ROAD_COLOR[0], ROAD_COLOR[1], ROAD_COLOR[2]] 
+                            t.color = [ROAD_COLOR[0] + c, ROAD_COLOR[1] + c, ROAD_COLOR[2] + c]
                         t.road_visited = False
                         t.typename = TILE_NAME
                         t.road_friction = 1.0
