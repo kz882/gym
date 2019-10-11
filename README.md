@@ -3,6 +3,10 @@ An improvement over OpenAI gym Car-Racing-v0
 
 This repo has improvements on the complexity for CarRacing-v0, which are focus torwards making `Car-Racing` env solvable, it s also intended to make the env complex enought to make it ideal to try new more complex tasks and RL problems. 
 
+## Installation
+
+Clone this repo and `pip install -e ."[Box2D]"` it is likely that you will need to install pyglet 1.3.2, use `pip install pyglet==v1.3.2` for that.
+
 ## New Features
 
 The new environment has some improvements regarding the complexity of the map, the action space and the observation space, let's start with the most useful changes
@@ -69,8 +73,7 @@ The map of the track now is configurable but still completely random, now the ma
 * Now the reaward function takes into account:
 
 	* Obstacles
-	* (in next versions) The lane in which the car is.
-	* (in next versions) The speed of the car.
+	* The lane in which the car is.
 
 ### New Features regarding Agent (i.e. car)
 
@@ -160,24 +163,23 @@ Returns: [beta, x, y].
 - [x] ~~Differentiate intersections~~
 - [x] ~~Add obstacles~~
 - [x] ~~Get outside position (use `get_position_outside(d)`)~~
-- [ ] Fix sizes to use with cnn and different configs for states
-- [ ] Get tile with certain conditions:
+- [x] ~~Fix sizes to use with cnn and different configs for states~~
+- [x] ~~Get tile with certain conditions:~~
 
    - [x] ~~With certain angle (e.g. >40º <- that is possible using `info['angle']` but it is not recommended, use get_rnd_tile_by_type_angle)~~
    - [x] ~~In an T-junction~~
    - [x] ~~In an X-junction~~
-   - [ ] With obstacle in front (DOES NOT MAKE SENSE TO IMPLEMENT RIGHT NOW)
+   - [x] ~~With obstacle in front~~
 
-- [ ] Apply (random) force to the car (CONSIDER IF IT IS WORTH IT IMPLEMENTING IT)
+- [ ] Apply (random) force to the car (Not yet implemented)
 
 ### low priority:
 
-- [ ] Randomize the direction (following the track direction or backwards) in get positions functions
-- [ ] Differentiate y from t junctions
-- [ ] Differentiate x from merge juntions
-- [ ] Add road lines graphically 
-- [ ] Fix joints of roads in some weird cases
+- [x] ~~Randomize the direction (following the track direction or backwards) in get positions functions~~
+- [x] ~~Differentiate y from t junctions~~
+- [x] ~~Add road lines graphically (although it is not tested with varying lanes)~~
+- [x] ~~Fix joints of roads in some weird cases (most cases covered)~~
  
 --- 
 
-for more information about the environment see the original readme file of the original repo
+for more information about the environment see the original readme file of the original repo or the code, most functions have descriptions and explanaitions.
