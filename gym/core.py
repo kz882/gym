@@ -1,15 +1,19 @@
-from pdb import set_trace
-from gym import logger
+from __future__ import annotations
+
+from abc import abstractmethod
+from typing import Generic, Optional, SupportsFloat, Tuple, TypeVar, Union
 
 import gym
-from gym import error
-from gym.utils import closer
+from gym import spaces
+from gym.logger import deprecation
+from gym.utils import seeding
+from gym.utils.seeding import RandomNumberGenerator
 
-env_closer = closer.Closer()
+ObsType = TypeVar("ObsType")
+ActType = TypeVar("ActType")
 
-# Env-related abstractions
 
-class Env(object):
+class Env(Generic[ObsType, ActType]):
     """The main OpenAI Gym class. It encapsulates an environment with
     arbitrary behind-the-scenes dynamics. An environment can be
     partially or fully observed.
@@ -30,21 +34,34 @@ class Env(object):
 
     Note: a default reward range set to [-inf,+inf] already exists. Set it if you want a narrower range.
 
-    The methods are accessed publicly as "step", "reset", etc.. The
-    non-underscored versions are wrapper methods to which we may add
-    functionality over time.
+    The methods are accessed publicly as "step", "reset", etc...
     """
 
     # Set this in SOME subclasses
-    metadata = {'render.modes': []}
-    reward_range = (-float('inf'), float('inf'))
+    metadata = {"render_modes": []}
+    reward_range = (-float("inf"), float("inf"))
     spec = None
 
     # Set these in ALL subclasses
-    action_space = None
-    observation_space = None
+    action_space: spaces.Space[ActType]
+    observation_space: spaces.Space[ObsType]
 
-    def step(self, action):
+    # Created
+    _np_random: RandomNumberGenerator | None = None
+
+    @property
+    def np_random(self) -> RandomNumberGenerator:
+        """Initializes the np_random field if not done already."""
+        if self._np_random is None:
+            self._np_random, seed = seeding.np_random()
+        return self._np_random
+
+    @np_random.setter
+    def np_random(self, value: RandomNumberGenerator):
+        self._np_random = value
+
+    @abstractmethod
+    def step(self, action: ActType) -> Tuple[ObsType, float, bool, dict]:
         """Run one timestep of the environment's dynamics. When end of
         episode is reached, you are responsible for calling `reset()`
         to reset this environment's state.
@@ -52,30 +69,50 @@ class Env(object):
         Accepts an action and returns a tuple (observation, reward, done, info).
 
         Args:
-            action (object): an action provided by the environment
+            action (object): an action provided by the agent
 
         Returns:
             observation (object): agent's observation of the current environment
             reward (float) : amount of reward returned after previous action
-            done (boolean): whether the episode has ended, in which case further step() calls will return undefined results
-            info (dict): contains auxiliary diagnostic information (helpful for debugging, and sometimes learning)
+            done (bool): whether the episode has ended, in which case further step() calls will return undefined results
+            info (dict): contains auxiliary diagnostic information (helpful for debugging, logging, and sometimes learning)
         """
         raise NotImplementedError
 
-    def reset(self):
-        """Resets the state of the environment and returns an initial observation.
+    @abstractmethod
+    def reset(
+        self,
+        *,
+        seed: Optional[int] = None,
+        return_info: bool = False,
+        options: Optional[dict] = None,
+    ) -> Union[ObsType, tuple[ObsType, dict]]:
+        """Resets the environment to an initial state and returns an initial
+        observation.
 
-        Returns: observation (object): the initial observation of the
-            space.
+        This method should also reset the environment's random number
+        generator(s) if `seed` is an integer or if the environment has not
+        yet initialized a random number generator. If the environment already
+        has a random number generator and `reset` is called with `seed=None`,
+        the RNG should not be reset.
+        Moreover, `reset` should (in the typical use case) be called with an
+        integer seed right after initialization and then never again.
+
+        Returns:
+            observation (object): the initial observation.
+            info (optional dictionary): a dictionary containing extra information, this is only returned if return_info is set to true
         """
-        raise NotImplementedError
+        # Initialize the RNG if the seed is manually passed
+        if seed is not None:
+            self._np_random, seed = seeding.np_random(seed)
 
-    def render(self, mode='human'):
+    @abstractmethod
+    def render(self, mode="human"):
         """Renders the environment.
 
         The set of supported modes varies per environment. (And some
-        environments do not support rendering at all.) By convention,
-        if mode is:
+        third-party environments may not support rendering at all.)
+        By convention, if mode is:
 
         - human: render to the current display or terminal and
           return nothing. Usually for human consumption.
@@ -87,23 +124,22 @@ class Env(object):
           and ANSI escape sequences (e.g. for colors).
 
         Note:
-            Make sure that your class's metadata 'render.modes' key includes
+            Make sure that your class's metadata 'render_modes' key includes
               the list of supported modes. It's recommended to call super()
               in implementations to use the functionality of this method.
 
         Args:
             mode (str): the mode to render with
-            close (bool): close all open renderings
 
         Example:
 
         class MyEnv(Env):
-            metadata = {'render.modes': ['human', 'rgb_array']}
+            metadata = {'render_modes': ['human', 'rgb_array']}
 
             def render(self, mode='human'):
                 if mode == 'rgb_array':
                     return np.array(...) # return RGB frame suitable for video
-                elif mode is 'human':
+                elif mode == 'human':
                     ... # pop up a window and render
                 else:
                     super(MyEnv, self).render(mode=mode) # just raise an exception
@@ -111,12 +147,12 @@ class Env(object):
         raise NotImplementedError
 
     def close(self):
-        """Override _close in your subclass to perform any necessary cleanup.
+        """Override close in your subclass to perform any necessary cleanup.
 
         Environments will automatically close() themselves when
         garbage collected or when the program exits.
         """
-        return
+        pass
 
     def seed(self, seed=None):
         """Sets the seed for this env's random number generator(s).
@@ -133,11 +169,15 @@ class Env(object):
               'seed'. Often, the main seed equals the provided 'seed', but
               this won't be true if seed=None, for example.
         """
-        logger.warn("Could not seed environment %s", self)
-        return
+        deprecation(
+            "Function `env.seed(seed)` is marked as deprecated and will be removed in the future. "
+            "Please use `env.reset(seed=seed) instead."
+        )
+        self._np_random, seed = seeding.np_random(seed)
+        return [seed]
 
     @property
-    def unwrapped(self):
+    def unwrapped(self) -> Env:
         """Completely unwrap this env.
 
         Returns:
@@ -147,198 +187,162 @@ class Env(object):
 
     def __str__(self):
         if self.spec is None:
-            return '<{} instance>'.format(type(self).__name__)
+            return f"<{type(self).__name__} instance>"
         else:
-            return '<{}<{}>>'.format(type(self).__name__, self.spec.id)
+            return f"<{type(self).__name__}<{self.spec.id}>>"
+
+    def __enter__(self):
+        """Support with-statement for the environment."""
+        return self
+
+    def __exit__(self, *args):
+        """Support with-statement for the environment."""
+        self.close()
+        # propagate exception
+        return False
 
 
-class GoalEnv(Env):
-    """A goal-based environment. It functions just as any regular OpenAI Gym environment but it
-    imposes a required structure on the observation_space. More concretely, the observation
-    space is required to contain at least three elements, namely `observation`, `desired_goal`, and
-    `achieved_goal`. Here, `desired_goal` specifies the goal that the agent should attempt to achieve.
-    `achieved_goal` is the goal that it currently achieved instead. `observation` contains the
-    actual observations of the environment as per usual.
+class Wrapper(Env[ObsType, ActType]):
+    """Wraps the environment to allow a modular transformation.
+
+    This class is the base class for all wrappers. The subclass could override
+    some methods to change the behavior of the original environment without touching the
+    original code.
+
+    .. note::
+
+        Don't forget to call ``super().__init__(env)`` if the subclass overrides :meth:`__init__`.
+
     """
 
-    def reset(self):
-        # Enforce that each GoalEnv uses a Goal-compatible observation space.
-        if not isinstance(self.observation_space, gym.spaces.Dict):
-            raise error.Error('GoalEnv requires an observation space of type gym.spaces.Dict')
-        result = super(GoalEnv, self).reset()
-        for key in ['observation', 'achieved_goal', 'desired_goal']:
-            if key not in result:
-                raise error.Error('GoalEnv requires the "{}" key to be part of the observation dictionary.'.format(key))
-        return result
-
-    def compute_reward(self, achieved_goal, desired_goal, info):
-        """Compute the step reward. This externalizes the reward function and makes
-        it dependent on an a desired goal and the one that was achieved. If you wish to include
-        additional rewards that are independent of the goal, you can include the necessary values
-        to derive it in info and compute it accordingly.
-
-        Args:
-            achieved_goal (object): the goal that was achieved during execution
-            desired_goal (object): the desired goal that we asked the agent to attempt to achieve
-            info (dict): an info dictionary with additional information
-
-        Returns:
-            float: The reward that corresponds to the provided achieved goal w.r.t. to the desired
-            goal. Note that the following should always hold true:
-
-                ob, reward, done, info = env.step()
-                assert reward == env.compute_reward(ob['achieved_goal'], ob['goal'], info)
-        """
-        raise NotImplementedError()
-
-# Space-related abstractions
-
-class Space(object):
-    """Defines the observation and action spaces, so you can write generic
-    code that applies to any Env. For example, you can choose a random
-    action.
-    """
-    def __init__(self, shape=None, dtype=None):
-        import numpy as np # takes about 300-400ms to import, so we load lazily
-        self.shape = None if shape is None else tuple(shape)
-        self.dtype = None if dtype is None else np.dtype(dtype)
-
-    def sample(self):
-        """
-        Uniformly randomly sample a random element of this space
-        """
-        raise NotImplementedError
-
-    def contains(self, x):
-        """
-        Return boolean specifying if x is a valid
-        member of this space
-        """
-        raise NotImplementedError
-
-    __contains__ = contains
-
-    def to_jsonable(self, sample_n):
-        """Convert a batch of samples from this space to a JSONable data type."""
-        # By default, assume identity is JSONable
-        return sample_n
-
-    def from_jsonable(self, sample_n):
-        """Convert a JSONable data type to a batch of samples from this space."""
-        # By default, assume identity is JSONable
-        return sample_n
-
-
-warn_once = True
-
-def deprecated_warn_once(text):
-    global warn_once
-    if not warn_once: return
-    warn_once = False
-    logger.warn(text)
-
-
-class Wrapper(Env):
-    env = None
-
-    def __init__(self, env):
+    def __init__(self, env: Env):
         self.env = env
-        self.action_space = self.env.action_space
-        self.observation_space = self.env.observation_space
-        self.reward_range = self.env.reward_range
-        self.metadata = self.env.metadata
 
-    @classmethod
-    def class_name(cls):
-        return cls.__name__
+        self._action_space: spaces.Space | None = None
+        self._observation_space: spaces.Space | None = None
+        self._reward_range: tuple[SupportsFloat, SupportsFloat] | None = None
+        self._metadata: dict | None = None
 
-    def step(self, action):
-        if hasattr(self, "_step"):
-            deprecated_warn_once("%s doesn't implement 'step' method, but it implements deprecated '_step' method." % type(self))
-            self.step = self._step
-            return self.step(action)
-        else:
-            deprecated_warn_once("%s doesn't implement 'step' method, " % type(self) +
-                "which is required for wrappers derived directly from Wrapper. Deprecated default implementation is used.")
-            return self.env.step(action)
-
-    def reset(self, **kwargs):
-        if hasattr(self, "_reset"):
-            deprecated_warn_once("%s doesn't implement 'reset' method, but it implements deprecated '_reset' method." % type(self))
-            self.reset = self._reset
-            return self._reset(**kwargs)
-        else:
-            deprecated_warn_once("%s doesn't implement 'reset' method, " % type(self) +
-                "which is required for wrappers derived directly from Wrapper. Deprecated default implementation is used.")
-            return self.env.reset(**kwargs)
-
-    def render(self, mode='human', **kwargs):
-        return self.env.render(mode, **kwargs)
-
-    def close(self):
-        if self.env:
-            return self.env.close()
-
-    def seed(self, seed=None):
-        return self.env.seed(seed)
-
-    def compute_reward(self, achieved_goal, desired_goal, info):
-        return self.env.compute_reward(achieved_goal, desired_goal, info)
-
-    def __str__(self):
-        return '<{}{}>'.format(type(self).__name__, self.env)
-
-    def __repr__(self):
-        return str(self)
-
-    @property
-    def unwrapped(self):
-        return self.env.unwrapped
+    def __getattr__(self, name):
+        if name.startswith("_"):
+            raise AttributeError(f"accessing private attribute '{name}' is prohibited")
+        return getattr(self.env, name)
 
     @property
     def spec(self):
         return self.env.spec
 
+    @classmethod
+    def class_name(cls):
+        return cls.__name__
+
+    @property
+    def action_space(self) -> spaces.Space[ActType]:
+        if self._action_space is None:
+            return self.env.action_space
+        return self._action_space
+
+    @action_space.setter
+    def action_space(self, space):
+        self._action_space = space
+
+    @property
+    def observation_space(self) -> spaces.Space:
+        if self._observation_space is None:
+            return self.env.observation_space
+        return self._observation_space
+
+    @observation_space.setter
+    def observation_space(self, space):
+        self._observation_space = space
+
+    @property
+    def reward_range(self) -> tuple[SupportsFloat, SupportsFloat]:
+        if self._reward_range is None:
+            return self.env.reward_range
+        return self._reward_range
+
+    @reward_range.setter
+    def reward_range(self, value):
+        self._reward_range = value
+
+    @property
+    def metadata(self) -> dict:
+        if self._metadata is None:
+            return self.env.metadata
+        return self._metadata
+
+    @metadata.setter
+    def metadata(self, value):
+        self._metadata = value
+
+    def step(self, action: ActType) -> Tuple[ObsType, float, bool, dict]:
+        return self.env.step(action)
+
+    def reset(self, **kwargs) -> Union[ObsType, tuple[ObsType, dict]]:
+        return self.env.reset(**kwargs)
+
+    def render(self, **kwargs):
+        return self.env.render(**kwargs)
+
+    def close(self):
+        return self.env.close()
+
+    def seed(self, seed=None):
+        return self.env.seed(seed)
+
+    def __str__(self):
+        return f"<{type(self).__name__}{self.env}>"
+
+    def __repr__(self):
+        return str(self)
+
+    @property
+    def unwrapped(self) -> Env:
+        return self.env.unwrapped
+
 
 class ObservationWrapper(Wrapper):
+    def reset(self, **kwargs):
+        if kwargs.get("return_info", False):
+            obs, info = self.env.reset(**kwargs)
+            return self.observation(obs), info
+        else:
+            return self.observation(self.env.reset(**kwargs))
+
     def step(self, action):
         observation, reward, done, info = self.env.step(action)
         return self.observation(observation), reward, done, info
 
-    def reset(self, **kwargs):
-        observation = self.env.reset(**kwargs)
-        return self.observation(observation)
-
+    @abstractmethod
     def observation(self, observation):
-        deprecated_warn_once("%s doesn't implement 'observation' method. Maybe it implements deprecated '_observation' method." % type(self))
-        return self._observation(observation)
+        raise NotImplementedError
 
 
 class RewardWrapper(Wrapper):
-    def reset(self):
-        return self.env.reset()
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
 
     def step(self, action):
         observation, reward, done, info = self.env.step(action)
         return observation, self.reward(reward), done, info
 
+    @abstractmethod
     def reward(self, reward):
-        deprecated_warn_once("%s doesn't implement 'reward' method. Maybe it implements deprecated '_reward' method." % type(self))
-        return self._reward(reward)
+        raise NotImplementedError
 
 
 class ActionWrapper(Wrapper):
+    def reset(self, **kwargs):
+        return self.env.reset(**kwargs)
+
     def step(self, action):
-        action = self.action(action)
-        return self.env.step(action)
+        return self.env.step(self.action(action))
 
-    def reset(self):
-        return self.env.reset()
-
+    @abstractmethod
     def action(self, action):
-        deprecated_warn_once("%s doesn't implement 'action' method. Maybe it implements deprecated '_action' method." % type(self))
-        return self._action(action)
+        raise NotImplementedError
 
+    @abstractmethod
     def reverse_action(self, action):
-        deprecated_warn_once("%s doesn't implement 'reverse_action' method. Maybe it implements deprecated '_reverse_action' method." % type(self))
-        return self._reverse_action(action)
+        raise NotImplementedError
